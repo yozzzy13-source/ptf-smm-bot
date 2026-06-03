@@ -53,6 +53,7 @@ export const config = {
   enableAutoTelegramPublish: optional('ENABLE_AUTO_TELEGRAM_PUBLISH', 'false') === 'true',
   sendGeneratedImagesToTelegram: optional('SEND_GENERATED_IMAGES_TO_TELEGRAM', 'true') === 'true',
   telegramMaxMediaSend: Number(optional('TELEGRAM_MAX_MEDIA_SEND', '2')),
+  enableTelegramRestartCommand: optional('ENABLE_TELEGRAM_RESTART_COMMAND', 'false') === 'true',
   autoSetupSheets: optional('AUTO_SETUP_SHEETS', 'true') === 'true',
   seedStrategicDefaults: optional('SEED_STRATEGIC_DEFAULTS', 'true') === 'true',
   dailyPackHour: Number(optional('DAILY_PACK_HOUR', '13')),

@@ -6,6 +6,7 @@ import { isDuplicate, markProcessed } from './services/dedupService.js';
 import { makeDedupKey, shortId } from './utils/idUtils.js';
 import { isAdminUser, normalizeText } from './utils/validation.js';
 import { processUserText } from './services/orchestrator.js';
+import { handleAdminCommand } from './services/commandService.js';
 import { generateTodayPackSummary } from './agents/todayPackAgent.js';
 import { saveSystemLog, syncSourceRegistryDefaults, seedStrategicDefaults } from './services/sheetsStorage.js';
 import { ensureSheetHeaders } from './services/googleSheetsService.js';
@@ -14,7 +15,7 @@ import { HEADERS } from './schemas/sheetSchema.js';
 const app = express();
 app.use(express.json({ limit: '20mb' }));
 app.get('/', (_, res) => res.status(200).send('PTF SMM Bot is running'));
-app.get('/health', (_, res) => res.status(200).json({ ok:true, service:'ptf-smm-bot', version:'0.3.1', env:config.nodeEnv, autoSetupSheets:config.autoSetupSheets, imageGenerationEnabled:config.enableImageGeneration, imageModel:config.openaiImageModel, strategicModel:config.openaiStrategicModel, sendGeneratedImagesToTelegram: config.sendGeneratedImagesToTelegram }));
+app.get('/health', (_, res) => res.status(200).json({ ok:true, service:'ptf-smm-bot', version:'0.3.2', env:config.nodeEnv, autoSetupSheets:config.autoSetupSheets, imageGenerationEnabled:config.enableImageGeneration, imageModel:config.openaiImageModel, strategicModel:config.openaiStrategicModel, sendGeneratedImagesToTelegram: config.sendGeneratedImagesToTelegram }));
 
 app.post('/telegram/webhook/:secret', async (req, res) => {
   const receivedSecret = req.params.secret;
@@ -29,6 +30,13 @@ app.post('/telegram/webhook/:secret', async (req, res) => {
     if (!isAdminUser(fromId, config.adminTelegramUserIds)) { await sendMessage(chatId, 'Этот бот сейчас работает только для админов PTF SMM.'); await markProcessed(dedupKey,'telegram','unauthorized'); return; }
     const text = normalizeText(extractTextFromMessage(message));
     if (!text) { await sendMessage(chatId, 'Пока MVP понимает только текст. Можно надиктовать через iPhone dictation и отправить текстом.'); await markProcessed(dedupKey,'telegram','empty_text'); return; }
+    const commandResult = await handleAdminCommand({ text, runLogger });
+    if (commandResult) {
+      await sendMessage(chatId, commandResult.textRu, commandResult.parseMode === 'HTML' ? { parse_mode:'HTML' } : {});
+      await markProcessed(dedupKey,'telegram',commandResult.type || 'command');
+      if (commandResult.restart) setTimeout(() => process.exit(0), 500);
+      return;
+    }
     await sendMessage(chatId, 'Принял. Думаю как SMM-директор и собираю пакет…');
     const result = await processUserText({ text, messageMeta:{ runId, telegramSource:`chat:${chatId}/message:${message.message_id}` }, runLogger });
     await sendMessage(chatId, result.textRu, result.parseMode === 'HTML' ? { parse_mode:'HTML' } : {});
