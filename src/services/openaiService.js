@@ -6,27 +6,44 @@ import { uploadBufferToDrive } from './googleDriveService.js';
 
 const client = new OpenAI({ apiKey: config.openaiApiKey });
 
+
+function supportsCustomTemperature(model = '') {
+  const m = String(model || '').toLowerCase();
+  // Some newer reasoning models only accept the default temperature value.
+  // If temperature is omitted, the API uses its default safely.
+  if (m.startsWith('gpt-5') || m.startsWith('o1') || m.startsWith('o3') || m.startsWith('o4')) return false;
+  return true;
+}
+
+function buildChatParams({ model, messages, temperature, response_format }) {
+  const params = { model, messages, response_format };
+  if (supportsCustomTemperature(model) && temperature !== undefined && temperature !== null) {
+    params.temperature = temperature;
+  }
+  return params;
+}
+
 export async function callJsonAgent({ system, user, schemaName, schema, temperature = 0.2, model = config.openaiModel, runLogger = logger }) {
   const messages = [{ role: 'system', content: system }, { role: 'user', content: user }];
+  const response_format = schema ? { type: 'json_schema', json_schema: { name: schemaName || 'agent_output', schema, strict: true } } : { type: 'json_object' };
+  const temperatureSent = supportsCustomTemperature(model) ? temperature : 'omitted_model_default';
+
   try {
-    const response = await client.chat.completions.create({
-      model,
-      messages,
-      temperature,
-      response_format: schema ? { type: 'json_schema', json_schema: { name: schemaName || 'agent_output', schema, strict: true } } : { type: 'json_object' }
-    });
+    runLogger.debug({ model, schemaName, temperatureSent }, 'OpenAI JSON agent call');
+    const response = await client.chat.completions.create(buildChatParams({ model, messages, temperature, response_format }));
     const content = response.choices?.[0]?.message?.content || '{}';
-    return { parsed: safeJsonParse(content, {}), raw: content, usage: response.usage };
+    return { parsed: safeJsonParse(content, {}), raw: content, usage: response.usage, model, temperatureSent };
   } catch (err) {
-    runLogger.error({ err: err.message, model }, 'Structured output failed; trying fallback JSON object');
-    const response = await client.chat.completions.create({
+    runLogger.error({ err: err.message, model, schemaName, temperatureSent }, 'Structured output failed; trying fallback JSON object');
+    const fallbackMessages = [{ role: 'system', content: `${system}\nReturn valid JSON only.` }, { role: 'user', content: user }];
+    const response = await client.chat.completions.create(buildChatParams({
       model,
-      messages: [{ role: 'system', content: `${system}\nReturn valid JSON only.` }, { role: 'user', content: user }],
+      messages: fallbackMessages,
       temperature,
       response_format: { type: 'json_object' }
-    });
+    }));
     const content = response.choices?.[0]?.message?.content || '{}';
-    return { parsed: safeJsonParse(content, {}), raw: content, usage: response.usage };
+    return { parsed: safeJsonParse(content, {}), raw: content, usage: response.usage, model, temperatureSent };
   }
 }
 
