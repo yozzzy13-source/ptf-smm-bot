@@ -1,8 +1,7 @@
-
 {
   "name": "ptf-smm-bot",
-  "version": "0.2.1",
-  "description": "Phuket Tennis Family AI SMM Telegram bot: natural-language Telegram -> AI router -> content planning -> readable replies -> schedule -> visual/media planning -> Google Sheets.",
+  "version": "0.3.0",
+  "description": "Phuket Tennis Family AI SMM OS: strategic SMM brain, event lifecycle planning, image generation, media planning, match-log analysis, and Google Sheets auto-migration.",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -12,23 +11,19 @@
     "set:webhook": "node scripts/set-webhook.js",
     "test:router": "node scripts/test-router-local.js"
   },
-  "engines": {
-    "node": ">=20"
-  },
+  "engines": { "node": ">=20" },
   "dependencies": {
     "axios": "^1.7.9",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "google-auth-library": "^9.15.1",
+    "googleapis": "^144.0.0",
     "openai": "^4.77.0",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "uuid": "^11.0.3",
-    "zod": "^3.24.1",
-    "googleapis": "^144.0.0"
+    "zod": "^3.24.1"
   },
-  "devDependencies": {
-    "nodemon": "^3.1.9"
-  }
+  "devDependencies": { "nodemon": "^3.1.9" }
 }

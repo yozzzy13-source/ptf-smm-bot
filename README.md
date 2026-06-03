@@ -1,36 +1,49 @@
+# PTF SMM Bot v0.3.0
 
-# PTF SMM Bot v0.2.0
+Strategic AI SMM OS for Phuket Tennis Family.
 
-AI-powered Telegram bot for Phuket Tennis Family.
+## What changed in v0.3
+- Strategic SMM Director Agent.
+- Event Lifecycle Planner with pre-event / match-day / live / post-event tail logic.
+- User Action Tasks: what Kostya should shoot, say, record, ask players.
+- Stronger Publication Schedule logic and lifecycle depth fallback.
+- Sponsor / Product / Ecosystem strategy tables.
+- Image generation support through GPT Image models, with optional Drive upload.
+- Google Sheets auto-migration: new tabs are created by the bot on deploy.
 
-## What it does
-- Understands natural-language Telegram messages in Russian/English.
-- Builds event campaigns and content calendars.
-- Produces English drafts for Telegram / Instagram.
-- Decides which visuals are needed: poster, story card, carousel cover, Telegram cover, thumbnail, etc.
-- Saves visual prompts to Google Sheets.
-- Reads match-log and player master sheets as source-of-truth context for storyline analysis.
-- Stores project context, brand rules, and bot memory in Google Sheets.
+## Recommended models
+Use only models available in your OpenAI API account.
 
-## Quick deploy
-Use the `.env.example` file and Railway.
+Fast launch:
+```env
+OPENAI_MODEL=gpt-4.1-mini
+OPENAI_ROUTER_MODEL=gpt-4.1-mini
+OPENAI_STRATEGIC_MODEL=gpt-4.1-mini
+OPENAI_CREATIVE_MODEL=gpt-4.1-mini
+OPENAI_ANALYST_MODEL=gpt-4.1-mini
+ENABLE_IMAGE_GENERATION=false
+```
 
-Important env vars:
-- `TELEGRAM_BOT_TOKEN`
-- `WEBHOOK_SECRET`
-- `PUBLIC_BASE_URL`
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL=gpt-4.1-mini` for first launch
-- `GOOGLE_SHEETS_SPREADSHEET_ID`
-- `GOOGLE_SERVICE_ACCOUNT_BASE64`
-- `MATCH_LOG_SPREADSHEET_ID`
-- `MATCH_LOG_SHEET_NAME`
-- `PLAYER_MASTER_SPREADSHEET_ID`
-- `PLAYER_MASTER_SHEET_NAME`
-- `OPENAI_IMAGE_MODEL=gpt-image-1`
-- `ENABLE_IMAGE_GENERATION=false` (turn on later)
+Production test:
+```env
+OPENAI_ROUTER_MODEL=gpt-4.1-mini
+OPENAI_STRATEGIC_MODEL=gpt-5.5
+OPENAI_CREATIVE_MODEL=gpt-5.5
+OPENAI_ANALYST_MODEL=gpt-5.5
+OPENAI_FAST_MODEL=gpt-4.1-mini
+OPENAI_IMAGE_MODEL=gpt-image-2
+ENABLE_IMAGE_GENERATION=true
+MAX_IMAGES_PER_REQUEST=2
+GOOGLE_DRIVE_MEDIA_ROOT_FOLDER_ID=<Drive folder ID>
+```
 
-## First tests
+If `gpt-5.5` or `gpt-image-2` is not available in your API account, set those env vars to models you have access to.
+
+## First v0.3 tests
 1. `на связи?`
-2. `Сделай контент-план под матч Chris Mitchell vs Robin Vercaemer 6 июня в 17:00 на The Peak, Division PRIME. Нужны анонс, сторис, Telegram, постер и обложка.`
-3. `Найди storylines по последним матчам и предложи 3 контент-идеи.`
+2. `через два с половиной дня у нас матч Robin Vercaemer против Chris Mitchell в 17.00 The Peak Racquet Park. Подготовь контент-план и необходимый контент вместе с временем публикации и всем необходимым`
+3. `Сделай стратегию контента на ближайшие 2 недели с учетом лиги, игроков, спонсоров и будущих турниров`
+4. `Сделай классный рекап двух месяцев лиги: найди интересные события, игроков, цифры и разложи это в контент-план`
+
+## Important
+The bot still does not autopost. It creates plans, assets, visual prompts/images, drafts, user tasks and schedule for approval.

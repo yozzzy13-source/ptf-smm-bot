@@ -1,4 +1,3 @@
-
 export const SHEETS = {
   readme: '00_Read Me',
   contentCalendar: '01_Content Calendar',
@@ -22,7 +21,15 @@ export const SHEETS = {
   playerMasterSnapshot: '19_Player Master Snapshot',
   matchLogSnapshot: '20_Match Log Snapshot',
   publicationSchedule: '21_Publication Schedule',
-  mediaSuggestions: '22_Media Suggestions'
+  mediaSuggestions: '22_Media Suggestions',
+  strategicBriefs: '23_Strategic SMM Briefs',
+  lifecycleRules: '24_Event Lifecycle Rules',
+  userActionTasks: '25_User Action Tasks',
+  sponsorIntegrations: '26_Sponsor Integrations',
+  ecosystemProducts: '27_Ecosystem Products',
+  contentMixAudit: '28_Content Mix Audit',
+  generatedImages: '29_Generated Images',
+  modelConfig: '30_Model Config'
 };
 
 export const HEADERS = {
@@ -47,5 +54,13 @@ export const HEADERS = {
   [SHEETS.playerMasterSnapshot]: ['Player ID','Player Name','Division','NTRP','Ranking Points','Wins','Losses','Avatar URL','Profile URL','Country / Language','Notes','Last Synced'],
   [SHEETS.matchLogSnapshot]: ['Match ID','Date','Season','Division','Stage','Player 1','Player 2','Score','Winner','Loser','Storyline Flags','Source','Last Synced'],
   [SHEETS.publicationSchedule]: ['Schedule ID','Related Event ID','Publish Date','Publish Time','Channel','Format','Title','Purpose','Overlap Check','Status','Owner','Related Content ID','Notes','Last Updated'],
-  [SHEETS.mediaSuggestions]: ['Suggestion ID','Related Event ID','Related Player','Asset Type','Asset Link / Folder','Best For','Priority','Status','Reason','Missing Asset','Notes','Last Updated']
+  [SHEETS.mediaSuggestions]: ['Suggestion ID','Related Event ID','Related Player','Asset Type','Asset Link / Folder','Best For','Priority','Status','Reason','Missing Asset','Notes','Last Updated'],
+  [SHEETS.strategicBriefs]: ['Brief ID','Created At','Horizon','Season Stage','Main Goal','Strategic Thesis','Content Priorities','Risks / Avoid','Sponsor/Product Notes','Recommended Mix','Raw JSON'],
+  [SHEETS.lifecycleRules]: ['Rule ID','Event Timing','Phase','Minimum Content','Channels','Timing Rules','User Tasks','Post-event Tail','Status','Notes'],
+  [SHEETS.userActionTasks]: ['Task ID','Related Event ID','Due Date','Due Time','Task Type','Task','Why Needed','Priority','Status','Owner','Notes','Last Updated'],
+  [SHEETS.sponsorIntegrations]: ['Sponsor ID','Sponsor / Partner','Category','Integration Type','Required Mentions','Preferred Channels','Frequency / Window','Status','Contact','Notes','Last Updated'],
+  [SHEETS.ecosystemProducts]: ['Product ID','Product Name','Category','What It Does','Audience','Content Angles','Priority','Status','Launch / Promo Window','Notes','Last Updated'],
+  [SHEETS.contentMixAudit]: ['Audit ID','Created At','Period','Players %','Matches %','Community %','Sponsors %','Products %','Education %','Recap %','Risk','Recommendation','Raw JSON'],
+  [SHEETS.generatedImages]: ['Image ID','Visual ID','Related Event ID','Asset Type','Prompt','Model','Size','Quality','Format','Drive File ID','Drive Link','Status','Error','Created At'],
+  [SHEETS.modelConfig]: ['Role','Env Var','Recommended Model','Fallback Model','Purpose','Status','Notes']
 };
