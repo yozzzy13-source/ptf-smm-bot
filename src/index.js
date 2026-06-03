@@ -1,7 +1,7 @@
 import express from 'express';
 import { config } from './config.js';
 import { logger, makeRunLogger } from './services/logger.js';
-import { extractMessage, extractTextFromMessage, sendMessage } from './services/telegramService.js';
+import { extractMessage, extractTextFromMessage, sendMessage, sendPhoto } from './services/telegramService.js';
 import { isDuplicate, markProcessed } from './services/dedupService.js';
 import { makeDedupKey, shortId } from './utils/idUtils.js';
 import { isAdminUser, normalizeText } from './utils/validation.js';
@@ -14,7 +14,7 @@ import { HEADERS } from './schemas/sheetSchema.js';
 const app = express();
 app.use(express.json({ limit: '20mb' }));
 app.get('/', (_, res) => res.status(200).send('PTF SMM Bot is running'));
-app.get('/health', (_, res) => res.status(200).json({ ok:true, service:'ptf-smm-bot', version:'0.3.0', env:config.nodeEnv, autoSetupSheets:config.autoSetupSheets, imageGenerationEnabled:config.enableImageGeneration, imageModel:config.openaiImageModel, strategicModel:config.openaiStrategicModel }));
+app.get('/health', (_, res) => res.status(200).json({ ok:true, service:'ptf-smm-bot', version:'0.3.1', env:config.nodeEnv, autoSetupSheets:config.autoSetupSheets, imageGenerationEnabled:config.enableImageGeneration, imageModel:config.openaiImageModel, strategicModel:config.openaiStrategicModel, sendGeneratedImagesToTelegram: config.sendGeneratedImagesToTelegram }));
 
 app.post('/telegram/webhook/:secret', async (req, res) => {
   const receivedSecret = req.params.secret;
@@ -32,6 +32,18 @@ app.post('/telegram/webhook/:secret', async (req, res) => {
     await sendMessage(chatId, 'Принял. Думаю как SMM-директор и собираю пакет…');
     const result = await processUserText({ text, messageMeta:{ runId, telegramSource:`chat:${chatId}/message:${message.message_id}` }, runLogger });
     await sendMessage(chatId, result.textRu, result.parseMode === 'HTML' ? { parse_mode:'HTML' } : {});
+    if (config.sendGeneratedImagesToTelegram && Array.isArray(result.telegramImages) && result.telegramImages.length) {
+      const imagesToSend = result.telegramImages.slice(0, config.telegramMaxMediaSend);
+      for (const img of imagesToSend) {
+        try {
+          const caption = img.driveLink ? `${img.caption}
+<a href="${img.driveLink}">Open in Drive</a>` : img.caption;
+          await sendPhoto(chatId, img.photoUrl, { caption, parse_mode: 'HTML' });
+        } catch (photoErr) {
+          runLogger.warn({ err: photoErr.message, img }, 'Failed to send generated image to Telegram');
+        }
+      }
+    }
     await markProcessed(dedupKey,'telegram',result.type);
   } catch (err) {
     logger.error({ err: err.stack || err.message, runId }, 'Webhook processing failed');

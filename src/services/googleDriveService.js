@@ -25,5 +25,6 @@ export async function uploadBufferToDrive({ buffer, filename, mimeType = 'image/
   } catch (err) {
     logger.warn({ err: err.message, fileId: res.data.id }, 'Could not make generated image publicly readable');
   }
-  return { uploaded: true, fileId: res.data.id, name: res.data.name, webViewLink: res.data.webViewLink, webContentLink: res.data.webContentLink };
+  const directImageUrl = `https://drive.google.com/uc?export=view&id=${res.data.id}`;
+  return { uploaded: true, fileId: res.data.id, name: res.data.name, webViewLink: res.data.webViewLink, webContentLink: res.data.webContentLink, directImageUrl };
 }

@@ -55,7 +55,7 @@ export async function processUserText({ text, messageMeta, runLogger }) {
     const savedImages=await saveGeneratedImages(visualPack.assets, createdEvent.event_id);
     const savedMedia=await saveMediaSuggestions(await suggestMediaForEvent({ event:createdEvent }), createdEvent.event_id);
     await saveSystemLog({ run_id:runId, level:'INFO', agent:'Strategic Event Lifecycle', action:'create_event_campaign', status:'Created', output_summary:`${createdTasks.length} tasks / ${savedSchedule.length} schedule / ${savedActions.length} user tasks / ${savedVisuals.length} visuals / ${savedImages.length} images / ${savedMedia.length} media`, raw_json:{strategicBrief:savedBrief,plan,createdEvent,createdTasks,drafts,visualPack,savedMedia} });
-    return { type:'event_campaign', textRu:formatEventCampaignReply({ createdEvent, createdTasks, drafts, plan, savedVisuals, savedImages, savedSchedule, savedActions, savedMedia, strategicBrief:savedBrief }), parseMode:'HTML' };
+    return { type:'event_campaign', textRu:formatEventCampaignReply({ createdEvent, createdTasks, drafts, plan, savedVisuals, savedImages, savedSchedule, savedActions, savedMedia, strategicBrief:savedBrief }), parseMode:'HTML', telegramImages: collectTelegramImages(visualPack.assets) };
   }
   return { type:'unknown', textRu:'Я понял сообщение, но пока не уверен, какой сценарий запустить. Переформулируй как задачу для SMM?' };
 }
@@ -75,3 +75,15 @@ function formatEventCampaignReply({ createdEvent, drafts, plan, savedVisuals, sa
 function formatStrategicBriefReply(brief) { return `🧠 <b>Strategic SMM Brief создан</b>\n\n<b>Горизонт:</b> ${escapeHtml(brief.horizon || '')}\n<b>Стадия:</b> ${escapeHtml(brief.season_stage || '')}\n\n<b>Главная цель</b>\n${escapeHtml(brief.main_goal_ru || '')}\n\n<b>Тезис</b>\n${escapeHtml(brief.strategic_thesis_ru || '')}\n\n<b>Приоритеты</b>\n${(brief.content_priorities||[]).slice(0,6).map(x=>`• ${escapeHtml(x)}`).join('\n')}\n\n<b>Микс</b>\n${(brief.recommended_mix||[]).slice(0,6).map(x=>`• ${escapeHtml(x)}`).join('\n')}\n\nЯ сохранил стратегический brief в таблицу. Следующим шагом можно попросить: “разложи это в календарь на 2 недели”.`; }
 function formatStorylineReply(storyline) { return `💡 <b>Storyline найден</b>\n\n<b>Тип:</b> ${escapeHtml(storyline.trigger_type)}\n<b>Канал:</b> ${escapeHtml(storyline.suggested_channel)}\n<b>Формат:</b> ${escapeHtml(storyline.suggested_format)}\n\n<b>Почему важно</b>\n${escapeHtml(storyline.why_it_matters)}\n\n<b>Telegram draft</b>\n<pre>${escapeHtml(shortText(storyline.telegram_draft,700))}</pre>`; }
 function formatTodayPack(pack) { const ready=pack.ready.map((r,i)=>`${i+1}. ${escapeHtml(r[3])} / ${escapeHtml(r[4])} — ${escapeHtml(r[6])} (${escapeHtml(r[11])})`).join('\n') || 'Нет ready-задач.'; const planned=pack.planned.map((r,i)=>`${i+1}. ${escapeHtml(r[3])} / ${escapeHtml(r[4])} — ${escapeHtml(r[6])} (${escapeHtml(r[11])})`).join('\n') || 'Нет planned-задач.'; return `📌 <b>Today’s PTF Content Pack</b>\n\n<b>Ready</b>\n${ready}\n\n<b>Planned</b>\n${planned}\n\nРекомендация: выбери 1 основной вечерний пост + 2–4 Stories. Автопостинг выключен.`; }
+
+function collectTelegramImages(assets = []) {
+  return (assets || [])
+    .filter((a) => a?.generated_image?.drive?.uploaded)
+    .map((a) => ({
+      assetType: a.asset_type || 'visual',
+      caption: `🖼 ${a.asset_type || 'Generated image'}`,
+      photoUrl: a.generated_image.drive.directImageUrl || a.generated_image.drive.webContentLink || a.generated_image.drive.webViewLink || '',
+      driveLink: a.generated_image.drive.webViewLink || ''
+    }))
+    .filter((x) => x.photoUrl);
+}

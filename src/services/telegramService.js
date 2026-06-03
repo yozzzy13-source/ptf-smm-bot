@@ -9,3 +9,9 @@ export async function sendMessage(chatId, text, options = {}) {
   const payload = { chat_id: chatId, text: String(text || '').slice(0, limit), disable_web_page_preview: true, ...options };
   return api.post('/sendMessage', payload);
 }
+
+export async function sendPhoto(chatId, photo, options = {}) {
+  if (!chatId || !photo) return null;
+  const payload = { chat_id: chatId, photo, ...options };
+  return api.post('/sendPhoto', payload);
+}
