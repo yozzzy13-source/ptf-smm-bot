@@ -1,3 +1,4 @@
+
 export const SHEETS = {
   readme: '00_Read Me',
   contentCalendar: '01_Content Calendar',
@@ -10,7 +11,16 @@ export const SHEETS = {
   partnersScouting: '08_Partners Scouting',
   systemLogs: '09_System Logs',
   dedup: '10_Dedup',
-  feedbackRules: '11_Feedback Rules'
+  feedbackRules: '11_Feedback Rules',
+  projectContext: '12_Project Context',
+  brandRulesMemory: '13_Brand Rules',
+  botMemory: '14_Bot Memory',
+  approvedExamples: '15_Approved Examples',
+  rejectedExamples: '16_Rejected Examples',
+  visualPrompts: '17_Visual Prompts',
+  matchLogSources: '18_Match Log Sources',
+  playerMasterSnapshot: '19_Player Master Snapshot',
+  matchLogSnapshot: '20_Match Log Snapshot'
 };
 
 export const HEADERS = {
@@ -24,5 +34,14 @@ export const HEADERS = {
   [SHEETS.partnersScouting]: ['Lead ID','Account / Business','Category','Instagram / Website','Why Relevant','Audience Fit','Collaboration Idea','Priority','Status','Contact Person','Last Contact','Next Action','Notes','Agent Suggestion'],
   [SHEETS.systemLogs]: ['Log ID','Timestamp','Level','Run ID','Agent','Action','Status','Input Summary','Output Summary','Error','Raw JSON'],
   [SHEETS.dedup]: ['Dedup Key','Timestamp','Source','Status','Notes'],
-  [SHEETS.feedbackRules]: ['Rule ID','Timestamp','Scope','Rule','Applies To Agent','Source Message','Status','Notes']
+  [SHEETS.feedbackRules]: ['Rule ID','Timestamp','Scope','Rule','Applies To Agent','Source Message','Status','Notes'],
+  [SHEETS.projectContext]: ['Context ID','Category','Title','Content','Status','Priority','Last Updated','Source'],
+  [SHEETS.brandRulesMemory]: ['Rule ID','Category','Rule','Applies To','Status','Priority','Source','Last Updated'],
+  [SHEETS.botMemory]: ['Memory ID','Type','Memory','Applies To','Status','Source','Created At','Notes'],
+  [SHEETS.approvedExamples]: ['Example ID','Content Type','Channel','Content','Why Approved','Applies To','Source','Date'],
+  [SHEETS.rejectedExamples]: ['Example ID','Content Type','Channel','Content','Why Rejected','Correction','Source','Date'],
+  [SHEETS.visualPrompts]: ['Visual ID','Related Event ID','Asset Type','Channel','Use Case','Prompt','Generation Status','Output Link / Path','Size','Priority','Notes','Last Updated'],
+  [SHEETS.matchLogSources]: ['Source ID','Source Type','Spreadsheet ID','Sheet Name','Purpose','Status','Last Sync','Notes'],
+  [SHEETS.playerMasterSnapshot]: ['Player ID','Player Name','Division','NTRP','Ranking Points','Wins','Losses','Avatar URL','Profile URL','Country / Language','Notes','Last Synced'],
+  [SHEETS.matchLogSnapshot]: ['Match ID','Date','Season','Division','Stage','Player 1','Player 2','Score','Winner','Loser','Storyline Flags','Source','Last Synced']
 };

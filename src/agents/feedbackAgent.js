@@ -1,4 +1,5 @@
 import { callJsonAgent } from '../services/openaiService.js';
+import { config } from '../config.js';
 import { feedbackSystemPrompt, feedbackSchema } from '../prompts/feedbackPrompt.js';
 import { saveFeedbackRule } from '../services/sheetsStorage.js';
 
@@ -9,6 +10,7 @@ export async function processFeedback({ text, runLogger }) {
     schemaName: 'ptf_feedback_memory',
     schema: feedbackSchema,
     temperature: 0.1,
+    model: config.openaiCreativeModel,
     runLogger
   });
   let saved = null;

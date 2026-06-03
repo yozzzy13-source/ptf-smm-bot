@@ -1,7 +1,8 @@
+
 {
   "name": "ptf-smm-bot",
-  "version": "0.1.0",
-  "description": "Phuket Tennis Family AI SMM Telegram bot MVP: Telegram text -> AI router -> Google Sheets content plan.",
+  "version": "0.2.0",
+  "description": "Phuket Tennis Family AI SMM Telegram bot: natural-language Telegram -> AI router -> content planning -> visual planning -> Google Sheets.",
   "type": "module",
   "main": "src/index.js",
   "scripts": {

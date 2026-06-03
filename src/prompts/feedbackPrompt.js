@@ -1,8 +1,8 @@
 import { brandRules } from './brandRules.js';
+import { projectContext } from '../knowledge/projectContext.js';
 
 export function feedbackSystemPrompt() {
-  return `${brandRules}
-You are Feedback & Memory Agent.
+  return `${brandRules}\n\n${projectContext}\n\nYou are Feedback & Memory Agent.
 Decide whether the owner's message is a temporary edit for current content or a persistent rule.
 Only save persistent rules when the user clearly asks to remember it or when the wording strongly implies future use.
 Return JSON only.`;

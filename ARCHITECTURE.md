@@ -1,69 +1,33 @@
-# Architecture
 
-## MVP v1
+# PTF SMM Bot Architecture v0.2.0
 
-```txt
-Telegram Bot
-  receives text
-  sends replies
+## Core idea
+Natural-language Telegram bot for Phuket Tennis Family.
+The user writes in Russian or English. The bot understands intent, plans content, proposes visuals, reads source-of-truth league data, and writes everything to Google Sheets.
 
-Express Webhook Server
-  validates update
-  deduplicates by update/chat/message ID
-  routes text to orchestrator
+## Agent roles
+- **AI Router** — understands free-form user requests and decides what workflow to run.
+- **Content Planner Agent** — creates the campaign/content task structure.
+- **Caption Agent** — creates English public-facing drafts.
+- **Visual Production Agent** — decides which visual assets are needed and produces generation-ready prompts. Optional OpenAI image generation can be enabled.
+- **Storyline Agent** — reads match-log context and finds story-driven content hooks.
+- **Feedback & Memory Agent** — stores user rules and style corrections.
 
-AI Command Router
-  classifies intent
-  extracts structured data
-  asks clarification if confidence low
+## Model architecture
+For fast launch, one model can power all agents:
+- `OPENAI_MODEL=gpt-4.1-mini`
 
-Agents
-  Content Planner Agent
-  Caption Agent
-  Feedback & Memory Agent
-  Daily Content Assistant
-  Storyline Agent MVP placeholder
+Recommended production split:
+- `OPENAI_ROUTER_MODEL` — stronger reasoning model.
+- `OPENAI_CREATIVE_MODEL` — stronger creative/planning model.
+- `OPENAI_FAST_MODEL` — quick utility tasks.
+- `OPENAI_STRUCTURE_MODEL` — cheap structured formatting.
+- `OPENAI_IMAGE_MODEL=gpt-image-1` — visual generation.
 
-Storage
-  Google Sheets via service account
+## Source-of-truth data
+- Website is a showcase layer.
+- Match Log / Player Master sheets are the source of truth.
+- Storyline analysis should use match log and player master, not website scraping.
 
-Logs
-  Railway logs
-  Google Sheet: 09_System Logs
-```
-
-## Core components
-
-### AI Command Router
-
-Reads free-form text and returns structured JSON:
-
-- intent
-- confidence
-- extracted event fields
-- missing critical fields
-- next agents
-
-### Orchestrator
-
-Runs agents in sequence. Agents do not talk to each other directly in MVP.
-
-### Content Planner Agent
-
-Creates campaign tasks around events.
-
-### Caption Agent
-
-Creates English Telegram/Instagram/Story/Poster drafts.
-
-### Feedback Agent
-
-Decides whether owner feedback should become a persistent rule.
-
-### Dedup Service
-
-Prevents repeated Telegram updates from creating duplicate events/tasks.
-
-## Later migration to Postgres
-
-Replace `sheetsStorage.js` with a Postgres-backed storage implementation while keeping agent/orchestrator APIs mostly unchanged.
+## Google Sheet tabs
+Main operating sheet includes content calendar, events, storylines, context memory, visual prompts, and source registry.

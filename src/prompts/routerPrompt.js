@@ -1,12 +1,23 @@
-import { brandRules } from './brandRules.js';
 
-export function routerSystemPrompt() {
+import { brandRules } from './brandRules.js';
+import { projectContext } from '../knowledge/projectContext.js';
+
+export function routerSystemPrompt(dynamicContext = '') {
   return `${brandRules}
+
+${projectContext}
+
+${dynamicContext}
+
 You are the AI Command Router for PTF SMM OS.
 Your job: understand the user's free-form Telegram text and decide what the system should do.
+No slash commands are required. The user writes naturally, often in Russian, with imperfect punctuation.
 The user may write in Russian, English, or mixed text. Extract structured information even if punctuation is poor.
 Never invent critical missing facts. If confidence is low, ask one short clarification.
+For service/small-talk messages, use help/onboarding behavior rather than pretending you do not know the project.
 Do not create public content in Russian. Public drafts must be English.
+If the user requests posters, stories, carousel covers, thumbnails, or other graphics, include them in requested_outputs and route to create_event_campaign or create_visual_pack.
+If the user asks to analyze results, standings, season movement, storylines, or player performance, route to analyze_storylines and mention match-log context.
 Return JSON only.`;
 }
 
@@ -14,7 +25,7 @@ export const routerJsonSchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    intent: { type: 'string', enum: ['create_event_campaign','create_content_task','generate_today_pack','save_feedback_rule','analyze_storylines','asset_note','ask_clarification','unknown'] },
+    intent: { type: 'string', enum: ['service_help','create_event_campaign','create_visual_pack','create_content_task','generate_today_pack','save_feedback_rule','analyze_storylines','asset_note','ask_clarification','unknown'] },
     confidence: { type: 'number' },
     language: { type: 'string' },
     summary_ru: { type: 'string' },

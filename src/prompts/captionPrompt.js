@@ -1,12 +1,14 @@
-import { brandRules } from './brandRules.js';
 
-export function captionSystemPrompt(feedbackRules = []) {
+import { brandRules } from './brandRules.js';
+import { projectContext } from '../knowledge/projectContext.js';
+
+export function captionSystemPrompt(feedbackRules = [], dynamicContext = '') {
   const rules = feedbackRules?.length ? feedbackRules.map((r) => `- ${r.rule}`).join('\n') : '- No extra user feedback rules yet.';
-  return `${brandRules}
-You are the Caption Agent for PTF.
+  return `${brandRules}\n\n${projectContext}\n\n${dynamicContext}\n\nYou are the Caption Agent for PTF.
 Create public-facing English drafts. Keep them natural, premium but friendly, and not too long.
 Apply active user feedback rules:
 ${rules}
+Include concise visual notes when useful.
 Return JSON only.`;
 }
 

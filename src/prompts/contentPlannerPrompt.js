@@ -1,12 +1,20 @@
-import { brandRules } from './brandRules.js';
 
-export function contentPlannerSystemPrompt() {
+import { brandRules } from './brandRules.js';
+import { projectContext } from '../knowledge/projectContext.js';
+
+export function contentPlannerSystemPrompt(dynamicContext = '') {
   return `${brandRules}
+
+${projectContext}
+
+${dynamicContext}
+
 You are the Content Planner Agent for PTF.
 Create a practical content campaign around a tennis event/match.
 No autoposting. Create tasks and drafts for human approval.
 Prefer flexible weekly slots, not rigid day-by-day rules.
 If event is close, compress the campaign. Keep output realistic for a small team.
+Always think in both text content and required visual assets: poster, story card, carousel cover, Telegram cover, thumbnail, player card usage.
 Return JSON only.`;
 }
 
@@ -45,8 +53,9 @@ export const contentPlannerSchema = {
         required: ['publish_date','channel','format','content_pillar','title','status','priority','caption_status','edit_status','design_status','notes','agent_suggestion']
       }
     },
+    visual_needs: { type: 'array', items: { type: 'string' } },
     missing_assets: { type: 'array', items: { type: 'string' } },
     recommended_next_action_ru: { type: 'string' }
   },
-  required: ['campaign_summary_ru','event','content_tasks','missing_assets','recommended_next_action_ru']
+  required: ['campaign_summary_ru','event','content_tasks','visual_needs','missing_assets','recommended_next_action_ru']
 };

@@ -1,29 +1,38 @@
-import { createStorylines } from '../services/sheetsStorage.js';
-import { shortId } from '../utils/idUtils.js';
 
-// MVP placeholder: deterministic storyline creator for user-provided result text.
-// Later this will read full match history and standings.
-export async function analyzeStorylineFromText({ text }) {
-  const lower = text.toLowerCase();
-  const triggers = [];
-  if (lower.includes('10-') || lower.includes('tiebreak') || lower.includes('tie-break')) triggers.push('Close Match');
-  if (lower.includes('comeback') || lower.includes('камбэк')) triggers.push('Comeback');
-  if (lower.includes('first win') || lower.includes('первая побед')) triggers.push('First Win');
-  if (lower.includes('streak') || lower.includes('серия')) triggers.push('Streak');
-  const storyline = {
-    storyline_id: shortId('STY'),
-    division: '',
-    players: '',
-    match: text.slice(0, 160),
-    trigger_type: triggers.join(', ') || 'Potential Storyline',
-    why_it_matters: 'Potential league story detected from user message. Needs review before publishing.',
-    suggested_channel: 'Telegram / Instagram Stories',
-    suggested_format: 'Short update / Story slide',
-    status: 'Idea',
-    telegram_draft: '',
-    ig_story_idea: '',
-    notes: 'MVP auto-detection. Upgrade later with full match history analysis.'
-  };
-  await createStorylines([storyline]);
-  return storyline;
+import { callJsonAgent } from '../services/openaiService.js';
+import { config } from '../config.js';
+import { createStorylines } from '../services/sheetsStorage.js';
+import { buildDynamicContextBlock } from '../services/contextMemoryService.js';
+
+const schema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    trigger_type: { type: 'string' },
+    why_it_matters: { type: 'string' },
+    suggested_channel: { type: 'string' },
+    suggested_format: { type: 'string' },
+    division: { type: 'string' },
+    players: { type: 'string' },
+    match: { type: 'string' },
+    telegram_draft: { type: 'string' },
+    ig_story_idea: { type: 'string' },
+    notes: { type: 'string' }
+  },
+  required: ['trigger_type','why_it_matters','suggested_channel','suggested_format','division','players','match','telegram_draft','ig_story_idea','notes']
+};
+
+export async function analyzeStorylineFromText({ text, matchLogSummary = null }) {
+  const dynamicContext = await buildDynamicContextBlock();
+  const { parsed } = await callJsonAgent({
+    system: `You are the Storyline Agent for PTF. ${dynamicContext}
+Find content-worthy storylines from match results, match history, player performance and league movement. Return JSON only.`,
+    user: JSON.stringify({ text, matchLogSummary }, null, 2),
+    schemaName: 'ptf_storyline',
+    schema,
+    temperature: 0.3,
+    model: config.openaiCreativeModel
+  });
+  await createStorylines([parsed]);
+  return parsed;
 }

@@ -1,8 +1,10 @@
+
 import { google } from 'googleapis';
 import { config } from '../config.js';
 import { logger } from './logger.js';
 
 let sheetsClient;
+let externalClients = new Map();
 
 function getCredentials() {
   let raw;
@@ -26,16 +28,26 @@ function getCredentials() {
   return parsed;
 }
 
-export async function getSheetsClient() {
-  if (sheetsClient) return sheetsClient;
+async function buildClient() {
   const credentials = getCredentials();
   const auth = new google.auth.JWT({
     email: credentials.client_email,
     key: credentials.private_key,
     scopes: ['https://www.googleapis.com/auth/spreadsheets']
   });
-  sheetsClient = google.sheets({ version: 'v4', auth });
-  return sheetsClient;
+  return google.sheets({ version: 'v4', auth });
+}
+
+export async function getSheetsClient(spreadsheetId = config.spreadsheetId) {
+  if (spreadsheetId === config.spreadsheetId) {
+    if (sheetsClient) return sheetsClient;
+    sheetsClient = await buildClient();
+    return sheetsClient;
+  }
+  if (externalClients.has(spreadsheetId)) return externalClients.get(spreadsheetId);
+  const client = await buildClient();
+  externalClients.set(spreadsheetId, client);
+  return client;
 }
 
 async function withRetry(operation, label, attempts = 3) {
@@ -56,11 +68,11 @@ async function withRetry(operation, label, attempts = 3) {
   throw lastErr;
 }
 
-export async function appendRow(sheetName, values) {
-  const sheets = await getSheetsClient();
+export async function appendRow(sheetName, values, spreadsheetId = config.spreadsheetId) {
+  const sheets = await getSheetsClient(spreadsheetId);
   const range = `'${sheetName}'!A:Z`;
   const res = await withRetry(() => sheets.spreadsheets.values.append({
-    spreadsheetId: config.spreadsheetId,
+    spreadsheetId,
     range,
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
@@ -70,12 +82,12 @@ export async function appendRow(sheetName, values) {
   return res.data;
 }
 
-export async function appendRows(sheetName, rows) {
+export async function appendRows(sheetName, rows, spreadsheetId = config.spreadsheetId) {
   if (!rows.length) return null;
-  const sheets = await getSheetsClient();
+  const sheets = await getSheetsClient(spreadsheetId);
   const range = `'${sheetName}'!A:Z`;
   const res = await withRetry(() => sheets.spreadsheets.values.append({
-    spreadsheetId: config.spreadsheetId,
+    spreadsheetId,
     range,
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
@@ -85,19 +97,19 @@ export async function appendRows(sheetName, rows) {
   return res.data;
 }
 
-export async function readRange(sheetName, a1Range = 'A:Z') {
-  const sheets = await getSheetsClient();
+export async function readRange(sheetName, a1Range = 'A:Z', spreadsheetId = config.spreadsheetId) {
+  const sheets = await getSheetsClient(spreadsheetId);
   const range = `'${sheetName}'!${a1Range}`;
   const res = await withRetry(() => sheets.spreadsheets.values.get({
-    spreadsheetId: config.spreadsheetId,
+    spreadsheetId,
     range
   }), `readRange:${sheetName}!${a1Range}`);
   return res.data.values || [];
 }
 
-export async function ensureSheetHeaders(headersMap) {
-  const sheets = await getSheetsClient();
-  const metadata = await withRetry(() => sheets.spreadsheets.get({ spreadsheetId: config.spreadsheetId }), 'metadata');
+export async function ensureSheetHeaders(headersMap, spreadsheetId = config.spreadsheetId) {
+  const sheets = await getSheetsClient(spreadsheetId);
+  const metadata = await withRetry(() => sheets.spreadsheets.get({ spreadsheetId }), 'metadata');
   const existing = new Map(metadata.data.sheets.map((s) => [s.properties.title, s.properties.sheetId]));
   const requests = [];
 
@@ -116,12 +128,12 @@ export async function ensureSheetHeaders(headersMap) {
   });
 
   if (requests.length) {
-    await withRetry(() => sheets.spreadsheets.batchUpdate({ spreadsheetId: config.spreadsheetId, requestBody: { requests } }), 'batchUpdate:addSheets');
+    await withRetry(() => sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } }), 'batchUpdate:addSheets');
   }
 
   for (const [title, headers] of Object.entries(headersMap)) {
     await withRetry(() => sheets.spreadsheets.values.update({
-      spreadsheetId: config.spreadsheetId,
+      spreadsheetId,
       range: `'${title}'!A1:${columnLetter(headers.length)}1`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [headers] }

@@ -1,8 +1,10 @@
+
 import { SHEETS } from '../schemas/sheetSchema.js';
 import { appendRow, appendRows, readRange } from './googleSheetsService.js';
 import { logger } from './logger.js';
 import { shortId } from '../utils/idUtils.js';
 import { nowIso, weekKey } from '../utils/dateUtils.js';
+import { config } from '../config.js';
 
 export async function createEvent(event, meta = {}) {
   const eventId = event.event_id || shortId('EVT');
@@ -67,6 +69,25 @@ export async function createStorylines(storylines) {
   return rows;
 }
 
+export async function saveVisualPrompts(assets, eventId = '') {
+  const rows = (assets || []).map((a) => [
+    a.visual_id || shortId('VIS'),
+    eventId,
+    a.asset_type || '',
+    a.channel || '',
+    a.use_case || '',
+    a.prompt || '',
+    a.generation_status || 'Prompt Ready',
+    a.output_link_path || '',
+    a.size || '',
+    a.priority || 'Medium',
+    a.notes || '',
+    nowIso()
+  ]);
+  if (rows.length) await appendRows(SHEETS.visualPrompts, rows);
+  return rows.map((r) => ({ visual_id: r[0], asset_type: r[2], channel: r[3], use_case: r[4], generation_status: r[6] }));
+}
+
 export async function saveFeedbackRule(rule) {
   const id = rule.rule_id || shortId('RULE');
   await appendRow(SHEETS.feedbackRules, [
@@ -81,7 +102,6 @@ export async function saveSystemLog(log) {
       log.log_id || shortId('LOG'), nowIso(), log.level || 'INFO', log.run_id || '', log.agent || '', log.action || '', log.status || '', log.input_summary || '', log.output_summary || '', log.error || '', JSON.stringify(log.raw_json || {})
     ]);
   } catch (err) {
-    // Logging must never block Telegram processing. Keep runtime alive and report in Railway logs.
     logger.warn({ err: err.message, log }, 'System log write failed');
   }
 }
@@ -113,5 +133,58 @@ export async function getFeedbackRules(limit = 100) {
   } catch (err) {
     logger.warn({ err: err.message }, 'Failed to read feedback rules; returning empty list');
     return [];
+  }
+}
+
+export async function getProjectContextRows(limit = 200) {
+  try {
+    const rows = await readRange(SHEETS.projectContext, 'A2:H300');
+    return rows.slice(0, limit);
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Failed to read project context; returning empty list');
+    return [];
+  }
+}
+
+export async function getBrandRulesRows(limit = 200) {
+  try {
+    const rows = await readRange(SHEETS.brandRulesMemory, 'A2:H300');
+    return rows.slice(0, limit);
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Failed to read brand rules; returning empty list');
+    return [];
+  }
+}
+
+export async function getBotMemoryRows(limit = 200) {
+  try {
+    const rows = await readRange(SHEETS.botMemory, 'A2:H300');
+    return rows.slice(0, limit);
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Failed to read bot memory; returning empty list');
+    return [];
+  }
+}
+
+export async function getMatchLogSourceConfig() {
+  try {
+    const rows = await readRange(SHEETS.matchLogSources, 'A2:H50');
+    return rows;
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Failed to read match log source config; returning empty list');
+    return [];
+  }
+}
+
+export async function syncSourceRegistryDefaults() {
+  try {
+    const existing = await getMatchLogSourceConfig();
+    if (existing.length) return;
+    await appendRows(SHEETS.matchLogSources, [
+      ['SRC-001', 'Match Log', config.matchLogSpreadsheetId, config.matchLogSheetName, 'Source of truth for results and storylines', 'Active', '', 'Configured from env'],
+      ['SRC-002', 'Player Master', config.playerMasterSpreadsheetId, config.playerMasterSheetName, 'Source of truth for players, avatars and player metadata', 'Active', '', 'Configured from env']
+    ]);
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Failed to seed match log source registry');
   }
 }
