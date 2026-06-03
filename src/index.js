@@ -15,7 +15,16 @@ app.use(express.json({ limit: '20mb' }));
 app.get('/', (_, res) => res.status(200).send('PTF SMM Bot is running'));
 app.get('/health', (_, res) => res.status(200).json({ ok: true, service: 'ptf-smm-bot', env: config.nodeEnv }));
 
-app.post(`/telegram/webhook/${config.webhookSecret}`, async (req, res) => {
+app.post('/telegram/webhook/:secret', async (req, res) => {
+  const receivedSecret = req.params.secret;
+
+  if (receivedSecret !== config.webhookSecret) {
+    logger.warn(
+      { receivedSecret, expectedSecret: config.webhookSecret },
+      'Webhook secret mismatch'
+    );
+    return res.status(403).json({ ok: false, error: 'Invalid webhook secret' });
+  }
   const update = req.body;
   const runId = shortId('RUN');
   const runLogger = makeRunLogger(runId);
