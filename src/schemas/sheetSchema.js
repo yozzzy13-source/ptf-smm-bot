@@ -20,7 +20,9 @@ export const SHEETS = {
   visualPrompts: '17_Visual Prompts',
   matchLogSources: '18_Match Log Sources',
   playerMasterSnapshot: '19_Player Master Snapshot',
-  matchLogSnapshot: '20_Match Log Snapshot'
+  matchLogSnapshot: '20_Match Log Snapshot',
+  publicationSchedule: '21_Publication Schedule',
+  mediaSuggestions: '22_Media Suggestions'
 };
 
 export const HEADERS = {
@@ -43,5 +45,7 @@ export const HEADERS = {
   [SHEETS.visualPrompts]: ['Visual ID','Related Event ID','Asset Type','Channel','Use Case','Prompt','Generation Status','Output Link / Path','Size','Priority','Notes','Last Updated'],
   [SHEETS.matchLogSources]: ['Source ID','Source Type','Spreadsheet ID','Sheet Name','Purpose','Status','Last Sync','Notes'],
   [SHEETS.playerMasterSnapshot]: ['Player ID','Player Name','Division','NTRP','Ranking Points','Wins','Losses','Avatar URL','Profile URL','Country / Language','Notes','Last Synced'],
-  [SHEETS.matchLogSnapshot]: ['Match ID','Date','Season','Division','Stage','Player 1','Player 2','Score','Winner','Loser','Storyline Flags','Source','Last Synced']
+  [SHEETS.matchLogSnapshot]: ['Match ID','Date','Season','Division','Stage','Player 1','Player 2','Score','Winner','Loser','Storyline Flags','Source','Last Synced'],
+  [SHEETS.publicationSchedule]: ['Schedule ID','Related Event ID','Publish Date','Publish Time','Channel','Format','Title','Purpose','Overlap Check','Status','Owner','Related Content ID','Notes','Last Updated'],
+  [SHEETS.mediaSuggestions]: ['Suggestion ID','Related Event ID','Related Player','Asset Type','Asset Link / Folder','Best For','Priority','Status','Reason','Missing Asset','Notes','Last Updated']
 };

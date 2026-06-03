@@ -1,24 +1,13 @@
 import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc.js';
-import timezone from 'dayjs/plugin/timezone.js';
-import { config } from '../config.js';
 
-dayjs.extend(utc);
-dayjs.extend(timezone);
+export function nowIso() { return new Date().toISOString(); }
+export function weekKey(date = new Date()) { return dayjs(date).format('YYYY-[W]WW'); }
 
-export function nowIso() {
-  return dayjs().tz(config.timezone).format();
-}
-
-export function weekKey(date = new Date()) {
-  return dayjs(date).tz(config.timezone).format('YYYY-[W]WW');
-}
-
-export function todayDate() {
-  return dayjs().tz(config.timezone).format('YYYY-MM-DD');
-}
-
-export function parseHumanDateFallback(value) {
-  if (!value) return '';
-  return String(value).trim();
+export function bangkokDateContext() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(now).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+  return { isoDate: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}`, year: parts.year, humanRu: `${parts.day}.${parts.month}.${parts.year} ${parts.hour}:${parts.minute} Bangkok time` };
 }

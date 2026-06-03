@@ -64,7 +64,7 @@ app.post('/telegram/webhook/:secret', async (req, res) => {
       return;
     }
 
-    await sendMessage(chatId, 'Принял. Разбираю задачу через AI Router…');
+    await sendMessage(chatId, 'Принял. Собираю SMM-пакет…');
 
     const result = await processUserText({
       text,
@@ -75,7 +75,7 @@ app.post('/telegram/webhook/:secret', async (req, res) => {
       runLogger
     });
 
-    await sendMessage(chatId, result.textRu);
+    await sendMessage(chatId, result.textRu, result.parseMode === 'HTML' ? { parse_mode: 'HTML' } : {});
     await markProcessed(dedupKey, 'telegram', result.type);
   } catch (err) {
     logger.error({ err: err.stack || err.message, runId }, 'Webhook processing failed');
