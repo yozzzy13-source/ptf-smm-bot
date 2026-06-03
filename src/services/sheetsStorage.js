@@ -1,5 +1,6 @@
 import { SHEETS } from '../schemas/sheetSchema.js';
 import { appendRow, appendRows, readRange } from './googleSheetsService.js';
+import { logger } from './logger.js';
 import { shortId } from '../utils/idUtils.js';
 import { nowIso, weekKey } from '../utils/dateUtils.js';
 
@@ -75,22 +76,42 @@ export async function saveFeedbackRule(rule) {
 }
 
 export async function saveSystemLog(log) {
-  await appendRow(SHEETS.systemLogs, [
-    log.log_id || shortId('LOG'), nowIso(), log.level || 'INFO', log.run_id || '', log.agent || '', log.action || '', log.status || '', log.input_summary || '', log.output_summary || '', log.error || '', JSON.stringify(log.raw_json || {})
-  ]);
+  try {
+    await appendRow(SHEETS.systemLogs, [
+      log.log_id || shortId('LOG'), nowIso(), log.level || 'INFO', log.run_id || '', log.agent || '', log.action || '', log.status || '', log.input_summary || '', log.output_summary || '', log.error || '', JSON.stringify(log.raw_json || {})
+    ]);
+  } catch (err) {
+    // Logging must never block Telegram processing. Keep runtime alive and report in Railway logs.
+    logger.warn({ err: err.message, log }, 'System log write failed');
+  }
 }
 
 export async function getRecentPublished(limit = 50) {
-  const rows = await readRange(SHEETS.publishedArchive, 'A2:P200');
-  return rows.slice(-limit);
+  try {
+    const rows = await readRange(SHEETS.publishedArchive, 'A2:P200');
+    return rows.slice(-limit);
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Failed to read recent published; returning empty list');
+    return [];
+  }
 }
 
 export async function getRecentContentTasks(limit = 100) {
-  const rows = await readRange(SHEETS.contentCalendar, 'A2:T300');
-  return rows.slice(-limit);
+  try {
+    const rows = await readRange(SHEETS.contentCalendar, 'A2:T300');
+    return rows.slice(-limit);
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Failed to read recent content tasks; returning empty list');
+    return [];
+  }
 }
 
 export async function getFeedbackRules(limit = 100) {
-  const rows = await readRange(SHEETS.feedbackRules, 'A2:H200');
-  return rows.slice(-limit).map((r) => ({ scope: r[2], rule: r[3], applies_to_agent: r[4], status: r[6] }));
+  try {
+    const rows = await readRange(SHEETS.feedbackRules, 'A2:H200');
+    return rows.slice(-limit).map((r) => ({ scope: r[2], rule: r[3], applies_to_agent: r[4], status: r[6] }));
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Failed to read feedback rules; returning empty list');
+    return [];
+  }
 }

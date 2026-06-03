@@ -8,26 +8,35 @@ import { isAdminUser, normalizeText } from './utils/validation.js';
 import { processUserText } from './services/orchestrator.js';
 import { generateTodayPackSummary } from './agents/todayPackAgent.js';
 import { saveSystemLog } from './services/sheetsStorage.js';
+import { ensureSheetHeaders } from './services/googleSheetsService.js';
+import { HEADERS } from './schemas/sheetSchema.js';
 
 const app = express();
 app.use(express.json({ limit: '20mb' }));
 
 app.get('/', (_, res) => res.status(200).send('PTF SMM Bot is running'));
-app.get('/health', (_, res) => res.status(200).json({ ok: true, service: 'ptf-smm-bot', env: config.nodeEnv }));
+app.get('/health', (_, res) => res.status(200).json({
+  ok: true,
+  service: 'ptf-smm-bot',
+  env: config.nodeEnv,
+  autoSetupSheets: config.autoSetupSheets,
+  webhookSecretConfigured: Boolean(config.webhookSecret && config.webhookSecret !== 'local-dev-secret')
+}));
 
+// Accept any webhook secret in the route, then validate it inside the handler.
+// This avoids unclear 404 errors and gives readable logs when secret/env mismatch happens.
 app.post('/telegram/webhook/:secret', async (req, res) => {
   const receivedSecret = req.params.secret;
-
   if (receivedSecret !== config.webhookSecret) {
-    logger.warn(
-      { receivedSecret, expectedSecret: config.webhookSecret },
-      'Webhook secret mismatch'
-    );
+    logger.warn({ receivedSecret, expectedSecret: config.webhookSecret }, 'Webhook secret mismatch');
     return res.status(403).json({ ok: false, error: 'Invalid webhook secret' });
   }
+
   const update = req.body;
   const runId = shortId('RUN');
   const runLogger = makeRunLogger(runId);
+
+  // Telegram should get 200 quickly to avoid repeated delivery/spam.
   res.status(200).json({ ok: true });
 
   try {
@@ -83,10 +92,23 @@ app.post('/telegram/webhook/:secret', async (req, res) => {
   }
 });
 
-app.listen(config.port, () => {
-  logger.info({ port: config.port }, 'PTF SMM Bot started');
-  startDailyPackScheduler();
-});
+async function bootstrap() {
+  if (config.autoSetupSheets) {
+    try {
+      await ensureSheetHeaders(HEADERS);
+      logger.info('Google Sheet structure ensured');
+    } catch (err) {
+      logger.error({ err: err.stack || err.message }, 'Google Sheet auto-setup failed. Bot will start, but Sheets operations may fail until fixed.');
+    }
+  }
+
+  app.listen(config.port, () => {
+    logger.info({ port: config.port }, 'PTF SMM Bot started');
+    startDailyPackScheduler();
+  });
+}
+
+bootstrap();
 
 function startDailyPackScheduler() {
   if (!config.dailyPackTelegramChatId) {
