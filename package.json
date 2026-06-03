@@ -1,0 +1,33 @@
+{
+  "name": "ptf-smm-bot",
+  "version": "0.1.0",
+  "description": "Phuket Tennis Family AI SMM Telegram bot MVP: Telegram text -> AI router -> Google Sheets content plan.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "setup:sheet": "node scripts/setup-sheet.js",
+    "set:webhook": "node scripts/set-webhook.js",
+    "test:router": "node scripts/test-router-local.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "google-auth-library": "^9.15.1",
+    "openai": "^4.77.0",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "uuid": "^11.0.3",
+    "zod": "^3.24.1",
+    "googleapis": "^144.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}

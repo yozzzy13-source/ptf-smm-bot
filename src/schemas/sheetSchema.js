@@ -1,0 +1,28 @@
+export const SHEETS = {
+  readme: '00_Read Me',
+  contentCalendar: '01_Content Calendar',
+  eventsMatches: '02_Events Matches',
+  playersContent: '03_Players Content',
+  assetsLibrary: '04_Assets Library',
+  storylines: '05_Storylines',
+  templates: '06_Templates',
+  publishedArchive: '07_Published Archive',
+  partnersScouting: '08_Partners Scouting',
+  systemLogs: '09_System Logs',
+  dedup: '10_Dedup',
+  feedbackRules: '11_Feedback Rules'
+};
+
+export const HEADERS = {
+  [SHEETS.contentCalendar]: ['Content ID','Week','Publish Date','Channel','Format','Content Pillar','Title / Topic','Related Player 1','Related Player 2','Related Event / Match','Asset Folder','Status','Priority','Owner','Caption Status','Edit Status','Design Status','Published Link','Notes','Agent Suggestion'],
+  [SHEETS.eventsMatches]: ['Event ID','Type','Date','Time','Venue','Division','Player 1','Player 2','Status','Score / Result','Importance','Story Angle','Asset Folder','Website Link','Telegram Source','Created From','Notes','Next Action'],
+  [SHEETS.playersContent]: ['Player ID','Player Name','Division','NTRP','Profile Reel Status','Footage Status','Voice Answer','Subtitles Status','Player Card','Asset Folder','Best Clips','Published Reel','Next Content Idea','Priority','Notes','Last Updated','Country / Language','Agent Suggestion'],
+  [SHEETS.assetsLibrary]: ['Asset ID','Asset Type','Related Player','Related Event / Match','Date Captured','Drive Folder / File Link','Hard Drive Backup Path','Usability','Used In','Status','Best For','Caption Notes','Rights / Permission','Notes','Uploaded By','Last Checked'],
+  [SHEETS.storylines]: ['Storyline ID','Date Found','Division','Player / Players','Match','Trigger Type','Why It Matters','Suggested Channel','Suggested Format','Status','Related Content ID','Telegram Draft','IG Story Idea','Notes'],
+  [SHEETS.templates]: ['Template ID','Template Type','Channel','Use Case','Template Text / Prompt','Variables','Tone','Approval Needed','Status','Notes','Last Updated','Owner'],
+  [SHEETS.publishedArchive]: ['Publication ID','Content ID','Published Date','Channel','Format','Title / Topic','Published Link','Related Player','Related Event','Asset Folder','Performance Notes','Views','Likes','Comments','Saves / Shares','Reuse Idea'],
+  [SHEETS.partnersScouting]: ['Lead ID','Account / Business','Category','Instagram / Website','Why Relevant','Audience Fit','Collaboration Idea','Priority','Status','Contact Person','Last Contact','Next Action','Notes','Agent Suggestion'],
+  [SHEETS.systemLogs]: ['Log ID','Timestamp','Level','Run ID','Agent','Action','Status','Input Summary','Output Summary','Error','Raw JSON'],
+  [SHEETS.dedup]: ['Dedup Key','Timestamp','Source','Status','Notes'],
+  [SHEETS.feedbackRules]: ['Rule ID','Timestamp','Scope','Rule','Applies To Agent','Source Message','Status','Notes']
+};
