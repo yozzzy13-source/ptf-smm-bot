@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { createFolderIfMissing, upsertTextFile } from './googleDriveService.js';
+import { createFolderIfMissing } from './googleDriveService.js';
 import { appendRows, readRange } from './googleSheetsService.js';
 import { SHEETS } from '../schemas/sheetSchema.js';
 import { shortId } from '../utils/idUtils.js';
@@ -104,13 +104,22 @@ export async function bootstrapMediaOs({ rootFolderId = config.mediaOsRootFolder
     created += campaignFolder.created || 0;
   }
 
-  const readmeFolder = map.get('00_System') || map.get('ROOT');
-  const readme = await upsertTextFile({ name:'README_RU.md', text: mediaOsReadme(), parentId: readmeFolder.id, mimeType:'text/markdown' });
-  folderRows.push(rowFor('00_System/README_RU.md','README_RU.md',readme.id,'00_System',readmeFolder.id,'00_System/README_RU.md','Русская инструкция: куда складывать материалы',readme.created));
-
+  // Важно: не создаём README-файл на Google Drive.
+  // В обычном My Drive service account может создавать папки в расшаренной папке,
+  // но создание файлов может упереться в storage quota service account.
+  // Инструкцию храним в Google Sheets (55_Media OS README), а Drive используем для папок/медиа.
   await syncFolderRows(folderRows);
   await seedReadmeSheet();
-  return { ok:true, rootFolderId, created, mapped: folderRows.length, readmeLink: readme.webViewLink || '', campaignFolderId: campaignFolder?.campaignFolderId || '' };
+  return {
+    ok:true,
+    rootFolderId,
+    created,
+    mapped: folderRows.length,
+    readmeLink: '',
+    readmeCreated: false,
+    message: 'Папки созданы/проверены. README-файл на Drive не создавался; инструкция сохранена в Google Sheets.',
+    campaignFolderId: campaignFolder?.campaignFolderId || ''
+  };
 }
 
 export async function createCampaignFolderTree({ campaignName, relatedEventId = '', rootMap = null, appendToMap = true } = {}) {
