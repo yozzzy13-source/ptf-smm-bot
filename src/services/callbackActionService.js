@@ -1,6 +1,6 @@
 
 import { answerCallbackQuery, sendMessage, editMessageReplyMarkup } from './telegramService.js';
-import { saveUserDecision, saveFollowupLog, markReminderStatus, updateApprovalStatus, saveStylePackFromReference } from './sheetsStorage.js';
+import { saveUserDecision, saveFollowupLog, markReminderStatus, updateApprovalStatus, saveStylePackFromReference, updateReferenceAssetType, saveCurrentFocus, getCampaignByEventId } from './sheetsStorage.js';
 import { escapeHtml } from '../utils/html.js';
 
 export function parseCallbackData(data = '') {
@@ -20,7 +20,8 @@ export async function handleCallbackQuery({ callbackQuery, runLogger }) {
   const statusMap = {
     approve: 'Approved', edit: 'Needs Edit', postpone: 'Postponed', regen: 'Needs Regeneration',
     posted: 'Published', notyet: 'Not Published Yet', skip: 'Skipped', style: 'Style Reference',
-    playerref: 'Player Reference', eventref: 'Event Reference'
+    playerref: 'Player Reference', eventref: 'Event Reference',
+    focus: 'Focused', approve_v1: 'Visual Option 1 Approved', approve_v2: 'Visual Option 2 Approved', edit_v1: 'Needs Edit Option 1', edit_v2: 'Needs Edit Option 2', regen_both: 'Regenerate Both', generate: 'Generate Visual'
   };
   const newStatus = statusMap[action] || action;
 
@@ -43,8 +44,25 @@ export async function handleCallbackQuery({ callbackQuery, runLogger }) {
     if (action === 'postpone') await markReminderStatus(id, 'Postponed', 'User clicked postpone');
     if (action === 'skip') await markReminderStatus(id, 'Skipped', 'User clicked skip');
     await saveFollowupLog({ reminder_id: id, related_object_id: id, action, old_status: '', new_status: newStatus, telegram_chat_id: chatId, telegram_message_id: messageId, notes: 'Callback button' });
+
+  } else if (type === 'cmp' && action === 'focus') {
+    const campaign = await getCampaignByEventId(id);
+    await saveCurrentFocus({ telegram_chat_id: chatId, related_event_id: id, campaign_id: id, focus_type: 'campaign', reason: 'User selected campaign from button', status: 'Active' });
+  } else if (type === 'vjob' && ['approve_v1','approve_v2','edit_v1','edit_v2','regen_both'].includes(action)) {
+    // Detailed visual version updates are handled by the next text instruction; here we preserve the decision trail.
+  } else if ((type === 'visual' || type === 'ref') && action === 'generate') {
+    // This button intentionally does not start expensive image generation inside callback.
+    // It records the user's intent and asks for one explicit text confirmation.
+
   } else if (type === 'ref' && action === 'style') {
+    await updateReferenceAssetType(id, 'Style Reference', 'User marked reference as style pack');
     await saveStylePackFromReference(id, { source: 'telegram_callback', notes: 'User marked reference as style pack' });
+  } else if (type === 'ref' && action === 'playerref') {
+    await updateReferenceAssetType(id, 'Player Reference', 'User marked reference as player reference');
+  } else if (type === 'ref' && action === 'eventref') {
+    await updateReferenceAssetType(id, 'Event Reference', 'User marked reference as event reference');
+  } else if (type === 'ref' && action === 'skip') {
+    await updateReferenceAssetType(id, 'Do Not Use', 'User marked reference as do not use');
   } else if (type) {
     await updateApprovalStatus(id, newStatus, `User clicked ${action}`);
   }

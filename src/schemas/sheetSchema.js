@@ -39,7 +39,17 @@ export const SHEETS = {
   assetUsageHistory: '37_Asset Usage History',
   campaignState: '38_Campaign State',
   draftVersions: '39_Draft Versions',
-  userDecisions: '40_User Decisions'
+  userDecisions: '40_User Decisions',
+  intentLog: '41_Intent Log',
+  assetBinding: '42_Asset Binding',
+  visualJobs: '43_Visual Jobs',
+  visualVersions: '44_Visual Versions',
+  routerDecisions: '45_Router Decisions',
+  clarificationQueue: '46_Clarification Queue',
+  campaignLocks: '47_Campaign Locks',
+  currentFocus: '48_Current Focus',
+  globalCalendarAudit: '49_Global Calendar Audit',
+  mediaAvailability: '50_Media Availability'
 };
 
 export const HEADERS = {
@@ -82,5 +92,15 @@ export const HEADERS = {
   [SHEETS.assetUsageHistory]: ['Usage ID','Created At','Asset ID','Reference ID','Related Event ID','Channel','Format','Used In Content ID','Published Date','Reuse Cooldown Days','Reuse Allowed After','Status','Notes'],
   [SHEETS.campaignState]: ['Campaign ID','Created At','Related Event ID','Campaign Name','Stage','Status','Approved Schedule','Approved Visuals','Approved Drafts','Pending Actions','Last Interaction At','Notes','Raw JSON'],
   [SHEETS.draftVersions]: ['Draft ID','Created At','Related Event ID','Related Content ID','Draft Type','Version','Text','Status','Feedback','Telegram Message ID','Notes','Last Updated'],
-  [SHEETS.userDecisions]: ['Decision ID','Timestamp','Telegram Chat ID','Telegram Message ID','Related Type','Related ID','Decision','Comment','Status Before','Status After','Raw Text','Raw JSON']
+  [SHEETS.userDecisions]: ['Decision ID','Timestamp','Telegram Chat ID','Telegram Message ID','Related Type','Related ID','Decision','Comment','Status Before','Status After','Raw Text','Raw JSON'],
+  [SHEETS.intentLog]: ['Intent ID','Timestamp','Run ID','Raw Text','Detected Intent','Target Type','Target ID','Confidence','Allowed Actions','Forbidden Actions','Needs Clarification','Reason','Raw JSON'],
+  [SHEETS.assetBinding]: ['Binding ID','Timestamp','Reference ID','Asset ID','Related Event ID','Related Campaign ID','Role','Related Player','Status','Confidence','Notes','Raw JSON'],
+  [SHEETS.visualJobs]: ['Visual Job ID','Timestamp','Related Event ID','Campaign ID','Visual Type','Requested Variants','Status','Reference IDs','Prompt Summary','Generated Count','Approved Option','Last User Feedback','Next Step','Raw JSON'],
+  [SHEETS.visualVersions]: ['Version ID','Timestamp','Visual Job ID','Option Number','Visual ID','Image ID','Drive Link','Status','User Feedback','Revision Of','Prompt','Raw JSON'],
+  [SHEETS.routerDecisions]: ['Decision ID','Timestamp','Run ID','Raw Text','Intent','Target Campaign','Target Object Type','Target Object ID','Confidence','Decision Reason','Allowed Actions','Forbidden Actions','Pipeline','Raw JSON'],
+  [SHEETS.clarificationQueue]: ['Clarification ID','Timestamp','Run ID','Question','Options','Status','Telegram Chat ID','Telegram Message ID','Raw Text','Raw JSON'],
+  [SHEETS.campaignLocks]: ['Lock ID','Timestamp','Related Event ID','Campaign ID','Lock Type','Status','Locked Fields','Reason','Created By','Last Updated'],
+  [SHEETS.currentFocus]: ['Focus ID','Timestamp','Telegram Chat ID','Related Event ID','Campaign ID','Focus Type','Reason','Status','Last Interaction At','Notes'],
+  [SHEETS.globalCalendarAudit]: ['Audit ID','Timestamp','Period','Campaigns Considered','Conflicts','Balance Notes','Recommendations','Raw JSON'],
+  [SHEETS.mediaAvailability]: ['Media Check ID','Timestamp','Related Event ID','Campaign ID','Needed Asset Type','Primary Format','Supporting Format','Fallback Format','Search Scope','Availability','Found Links','Status','Notes']
 };

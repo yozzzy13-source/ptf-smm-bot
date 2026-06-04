@@ -260,3 +260,139 @@ async function archiveRowsExcept(sheetName, range, eventColIdx, statusColIdx, ke
 }
 
 function columnLetterLocal(n) { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - m - 1) / 26); } return s; }
+
+
+export async function getRecentReferenceAssets(limit = 30) {
+  try {
+    const rows = await readRange(SHEETS.referenceAssets, 'A2:M700');
+    return rows.slice(-limit).map((r) => ({
+      reference_id: r[0],
+      created_at: r[1],
+      source: r[2],
+      telegram_chat_id: r[3],
+      telegram_message_id: r[4],
+      telegram_file_id: r[5],
+      drive_link: r[6],
+      reference_type: r[7],
+      related_player: r[8],
+      related_event_id: r[9],
+      status: r[10],
+      notes: r[11],
+      last_updated: r[12]
+    })).filter((r) => r.reference_id && !String(r.status || '').toLowerCase().includes('skip') && !String(r.status || '').toLowerCase().includes('not use'));
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Failed to read reference assets; returning empty list');
+    return [];
+  }
+}
+
+export async function updateReferenceAssetType(referenceId, referenceType, notes = '') {
+  const rows = await readRange(SHEETS.referenceAssets, 'A2:M700');
+  const idx = rows.findIndex((r) => r[0] === referenceId);
+  if (idx < 0) return false;
+  const rowNumber = idx + 2;
+  await updateRange(SHEETS.referenceAssets, `H${rowNumber}:M${rowNumber}`, [[referenceType, rows[idx][8] || '', rows[idx][9] || '', referenceType === 'Do Not Use' ? 'Skipped' : 'Active', notes || rows[idx][11] || '', nowIso()]]);
+  return true;
+}
+
+export async function saveIntentLog(item = {}) {
+  const id = item.intent_id || shortId('INT');
+  await appendRow(SHEETS.intentLog, [id, nowIso(), item.run_id || '', item.raw_text || '', item.intent || '', item.target_type || '', item.target_id || '', item.confidence ?? '', (item.allowed_actions || []).join(', '), (item.forbidden_actions || []).join(', '), item.needs_clarification ? 'TRUE' : 'FALSE', item.reason || '', JSON.stringify(item.raw_json || item)]);
+  return { ...item, intent_id: id };
+}
+
+export async function saveRouterDecision(item = {}) {
+  const id = item.decision_id || shortId('RTE');
+  await appendRow(SHEETS.routerDecisions, [id, nowIso(), item.run_id || '', item.raw_text || '', item.intent || '', item.target_campaign || '', item.target_object_type || '', item.target_object_id || '', item.confidence ?? '', item.reason || '', (item.allowed_actions || []).join(', '), (item.forbidden_actions || []).join(', '), item.pipeline || '', JSON.stringify(item.raw_json || item)]);
+  return { ...item, decision_id: id };
+}
+
+export async function saveClarification(item = {}) {
+  const id = item.clarification_id || shortId('CLR');
+  await appendRow(SHEETS.clarificationQueue, [id, nowIso(), item.run_id || '', item.question || '', JSON.stringify(item.options || []), item.status || 'Pending', item.telegram_chat_id || '', item.telegram_message_id || '', item.raw_text || '', JSON.stringify(item.raw_json || item)]);
+  return { ...item, clarification_id: id };
+}
+
+export async function saveCurrentFocus(focus = {}) {
+  const id = focus.focus_id || shortId('FOC');
+  await appendRow(SHEETS.currentFocus, [id, nowIso(), focus.telegram_chat_id || '', focus.related_event_id || '', focus.campaign_id || '', focus.focus_type || 'campaign', focus.reason || '', focus.status || 'Active', nowIso(), focus.notes || '']);
+  return { ...focus, focus_id: id };
+}
+
+export async function getCurrentFocus(telegramChatId = '') {
+  try {
+    const rows = await readRange(SHEETS.currentFocus, 'A2:J700');
+    const filtered = rows.map((r)=>({ focus_id:r[0], timestamp:r[1], telegram_chat_id:r[2], related_event_id:r[3], campaign_id:r[4], focus_type:r[5], reason:r[6], status:r[7], last_interaction_at:r[8], notes:r[9] }))
+      .filter((r)=>!telegramChatId || String(r.telegram_chat_id) === String(telegramChatId))
+      .filter((r)=>String(r.status || '').toLowerCase() === 'active');
+    return filtered.slice(-1)[0] || null;
+  } catch (err) { logger.warn({ err: err.message }, 'Failed to get current focus'); return null; }
+}
+
+export async function getCampaignByEventId(eventId = '') {
+  if (!eventId) return null;
+  try {
+    const rows = await readRange(SHEETS.eventsMatches, 'A2:R700');
+    const idx = rows.findIndex((r)=>r[0] === eventId);
+    if (idx < 0) return null;
+    const r = rows[idx];
+    return { row_number: idx + 2, event_id:r[0], type:r[1], date:r[2], time:r[3], venue:r[4], division:r[5], player1:r[6], player2:r[7], status:r[8], story_angle:r[11] };
+  } catch (err) { logger.warn({ err: err.message }, 'Failed to get campaign by event id'); return null; }
+}
+
+export async function getActiveCampaigns(limit = 12) {
+  try {
+    const rows = await readRange(SHEETS.eventsMatches, 'A2:R700');
+    return rows.map((r, idx)=>({ row_number: idx+2, event_id:r[0], type:r[1], date:r[2], time:r[3], venue:r[4], division:r[5], player1:r[6], player2:r[7], status:r[8], story_angle:r[11] }))
+      .filter((e)=>e.event_id && !String(e.status || '').toLowerCase().includes('archived'))
+      .slice(-limit);
+  } catch (err) { logger.warn({ err: err.message }, 'Failed to get active campaigns'); return []; }
+}
+
+export async function saveCampaignLock(lock = {}) {
+  const id = lock.lock_id || shortId('LCK');
+  await appendRow(SHEETS.campaignLocks, [id, nowIso(), lock.related_event_id || '', lock.campaign_id || '', lock.lock_type || 'Approved Plan Lock', lock.status || 'Active', (lock.locked_fields || []).join(', '), lock.reason || '', lock.created_by || 'bot', nowIso()]);
+  return { ...lock, lock_id: id };
+}
+
+export async function getCampaignLocks(eventId = '') {
+  try {
+    const rows = await readRange(SHEETS.campaignLocks, 'A2:J700');
+    return rows.map((r)=>({ lock_id:r[0], related_event_id:r[2], campaign_id:r[3], lock_type:r[4], status:r[5], locked_fields:r[6], reason:r[7] }))
+      .filter((r)=>!eventId || r.related_event_id === eventId)
+      .filter((r)=>String(r.status || '').toLowerCase() === 'active');
+  } catch (err) { logger.warn({ err: err.message }, 'Failed to get campaign locks'); return []; }
+}
+
+export async function saveAssetBindings(bindings = []) {
+  const rows = (bindings || []).map((b)=>[b.binding_id || shortId('BND'), nowIso(), b.reference_id || '', b.asset_id || '', b.related_event_id || '', b.related_campaign_id || '', b.role || '', b.related_player || '', b.status || 'Active', b.confidence ?? '', b.notes || '', JSON.stringify(b.raw_json || b)]);
+  if (rows.length) await appendRows(SHEETS.assetBinding, rows);
+  return rows.map((r)=>({ binding_id:r[0], reference_id:r[2], related_event_id:r[4], role:r[6], status:r[8] }));
+}
+
+export async function saveVisualJob(job = {}) {
+  const id = job.visual_job_id || shortId('VJOB');
+  await appendRow(SHEETS.visualJobs, [id, nowIso(), job.related_event_id || '', job.campaign_id || '', job.visual_type || 'match poster', job.requested_variants || 2, job.status || 'Requested', (job.reference_ids || []).join(', '), job.prompt_summary || '', job.generated_count || 0, job.approved_option || '', job.last_user_feedback || '', job.next_step || '', JSON.stringify(job.raw_json || job)]);
+  return { ...job, visual_job_id: id };
+}
+
+export async function saveVisualVersions(versions = []) {
+  const rows = (versions || []).map((v)=>[v.version_id || shortId('VVER'), nowIso(), v.visual_job_id || '', v.option_number || '', v.visual_id || '', v.image_id || '', v.drive_link || '', v.status || 'Generated', v.user_feedback || '', v.revision_of || '', v.prompt || '', JSON.stringify(v.raw_json || v)]);
+  if (rows.length) await appendRows(SHEETS.visualVersions, rows);
+  return rows.map((r)=>({ version_id:r[0], visual_job_id:r[2], option_number:r[3], drive_link:r[6], status:r[7] }));
+}
+
+export async function getLastVisualJob(eventId = '') {
+  try {
+    const rows = await readRange(SHEETS.visualJobs, 'A2:N700');
+    const jobs = rows.map((r)=>({ visual_job_id:r[0], created_at:r[1], related_event_id:r[2], campaign_id:r[3], visual_type:r[4], requested_variants:Number(r[5]||0), status:r[6], reference_ids:r[7], prompt_summary:r[8], generated_count:Number(r[9]||0), approved_option:r[10], last_user_feedback:r[11], next_step:r[12] }))
+      .filter((j)=>!eventId || j.related_event_id === eventId);
+    return jobs.slice(-1)[0] || null;
+  } catch (err) { logger.warn({ err: err.message }, 'Failed to get last visual job'); return null; }
+}
+
+export async function saveMediaAvailabilityChecks(items = []) {
+  const rows = (items || []).map((m)=>[m.media_check_id || shortId('MAV'), nowIso(), m.related_event_id || '', m.campaign_id || '', m.needed_asset_type || '', m.primary_format || '', m.supporting_format || '', m.fallback_format || '', m.search_scope || '', m.availability || 'Not Scanned', (m.found_links || []).join('\n'), m.status || 'Prepared', m.notes || '']);
+  if (rows.length) await appendRows(SHEETS.mediaAvailability, rows);
+  return rows.map((r)=>({ media_check_id:r[0], needed_asset_type:r[4], availability:r[9], status:r[11] }));
+}

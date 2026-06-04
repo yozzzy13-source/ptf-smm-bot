@@ -2,7 +2,7 @@ import { config } from '../config.js';
 import { generateTodayPackSummary } from '../agents/todayPackAgent.js';
 import { ensureSheetHeaders } from './googleSheetsService.js';
 import { HEADERS } from '../schemas/sheetSchema.js';
-import { getRecentEvents, getPublicationSchedule, syncSourceRegistryDefaults, seedStrategicDefaults, cleanupTestCampaigns, getActiveCampaign } from './sheetsStorage.js';
+import { getRecentEvents, getPublicationSchedule, syncSourceRegistryDefaults, seedStrategicDefaults, cleanupTestCampaigns, getActiveCampaign, getCurrentFocus, getActiveCampaigns, getLastVisualJob, getRecentReferenceAssets } from './sheetsStorage.js';
 import { escapeHtml } from '../utils/html.js';
 
 function normalizeCommand(text = '') {
@@ -15,6 +15,10 @@ function normalizeCommand(text = '') {
 export async function handleAdminCommand({ text, runLogger }) {
   const command = normalizeCommand(text);
   if (!command.startsWith('/')) return null;
+
+  if (['/generate_visual', '/poster'].includes(command)) {
+    return null;
+  }
 
   if (['/start', '/help', '/commands', '/menu'].includes(command)) {
     return { type: 'command', parseMode: 'HTML', textRu: commandsList() };
@@ -60,6 +64,19 @@ export async function handleAdminCommand({ text, runLogger }) {
     return { type: 'command', parseMode: 'HTML', textRu: cleanupReply(result) };
   }
 
+  if (['/campaign_state','/current_focus'].includes(command)) {
+    const active = await getActiveCampaign();
+    const focus = await getCurrentFocus();
+    const refs = await getRecentReferenceAssets(12);
+    const lastVisual = active?.event_id ? await getLastVisualJob(active.event_id) : null;
+    return { type:'command', parseMode:'HTML', textRu: campaignStateReply({ active, focus, refs, lastVisual }) };
+  }
+
+  if (command === '/campaigns') {
+    const campaigns = await getActiveCampaigns(12);
+    return { type:'command', parseMode:'HTML', textRu: campaignsReply(campaigns) };
+  }
+
   if (['/clear_history', '/reset_context'].includes(command)) {
     return { type: 'command', parseMode: 'HTML', textRu: resetContextReply() };
   }
@@ -79,7 +96,11 @@ export async function handleAdminCommand({ text, runLogger }) {
 }
 
 function commandsList() {
-  return `🧭 <b>PTF Media Bot — команды</b>\n\n<b>Основное</b>\n<code>/commands</code> — показать все команды\n<code>/status</code> — состояние бота и ключевых режимов\n<code>/models</code> — какие модели прописаны в Railway\n<code>/today</code> — сегодняшний контент-пак\n<code>/upcoming</code> — последние/ближайшие события из таблицы\n<code>/schedule</code> — последние элементы Publication Schedule\n\n<b>Обслуживание</b>\n<code>/setup</code> — заново проверить/создать вкладки Google Sheets\n<code>/clear_history</code> — сбросить разговорный контекст чата\n<code>/reset_context</code> — то же самое\n<code>/restart</code> — перезапустить процесс бота, если включено в env\n\n<b>Картинки</b>\n<code>/image_on</code> — подсказка, как включить генерацию изображений\n<code>/image_off</code> — подсказка, как выключить генерацию изображений\n\n<b>Кнопки в сообщениях</b>\n✅ Утвердить — фиксирует план/драфт/визуал\n✏️ Править — бот ждёт твою правку текстом\n✅ Опубликовал — отмечает задачу как опубликованную\n⏳ Ещё нет — оставляет в follow-up\n⏰ Позже — переносит/откладывает статус\n🚫 Пропустить — снимает напоминание\n\n<b>Как работать без команд</b>\nМожно писать обычным текстом:\n<pre>Через 2 дня матч Chris vs Robin. Подготовь SMM-сопровождение, прогрев, визуалы и задачи для меня.</pre>`;
+  return `🧭 <b>PTF Media Bot — команды</b>\n\n<b>Основное</b>\n<code>/commands</code> — показать все команды\n<code>/status</code> — состояние бота и ключевых режимов\n<code>/models</code> — какие модели прописаны в Railway\n<code>/today</code> — сегодняшний контент-пак\n<code>/upcoming</code> — последние/ближайшие события из таблицы\n<code>/schedule</code> — последние элементы Publication Schedule
+<code>/active_campaign</code> — текущая активная кампания
+<code>/campaign_state</code> — фокус, референсы, визуалы и следующий шаг
+<code>/campaigns</code> — список активных кампаний\n\n<b>Обслуживание</b>\n<code>/setup</code> — заново проверить/создать вкладки Google Sheets\n<code>/clear_history</code> — сбросить разговорный контекст чата\n<code>/reset_context</code> — то же самое\n<code>/restart</code> — перезапустить процесс бота, если включено в env\n\n<b>Картинки</b>\n<code>/image_on</code> — подсказка, как включить генерацию изображений\n<code>/image_off</code> — подсказка, как выключить генерацию изображений
+<code>/generate_visual</code> — visual-only генерация: не трогает кампанию и schedule\n\n<b>Кнопки в сообщениях</b>\n✅ Утвердить — фиксирует план/драфт/визуал\n✏️ Править — бот ждёт твою правку текстом\n✅ Опубликовал — отмечает задачу как опубликованную\n⏳ Ещё нет — оставляет в follow-up\n⏰ Позже — переносит/откладывает статус\n🚫 Пропустить — снимает напоминание\n\n<b>Как работать без команд</b>\nМожно писать обычным текстом:\n<pre>Через 2 дня матч Chris vs Robin. Подготовь SMM-сопровождение, прогрев, визуалы и задачи для меня.</pre>`;
 }
 
 function statusReply() {
@@ -135,4 +156,32 @@ function imageToggleReply(command) {
     return `🖼 <b>Как включить генерацию изображений</b>\n\nВ Railway Variables поставь:\n<code>ENABLE_IMAGE_GENERATION=true</code>\n<code>SEND_GENERATED_IMAGES_TO_TELEGRAM=true</code>\n\nПотом сделай Redeploy.`;
   }
   return `🖼 <b>Как выключить генерацию изображений</b>\n\nВ Railway Variables поставь:\n<code>ENABLE_IMAGE_GENERATION=false</code>\n\nПотом сделай Redeploy. Бот продолжит создавать visual prompts без генерации картинок.`;
+}
+
+
+function campaignStateReply({ active, focus, refs, lastVisual }) {
+  if (!active) return '⚠️ <b>Кампания не найдена</b>';
+  const refSummary = `${refs.length} последних референсов`;
+  const visual = lastVisual ? `${lastVisual.visual_job_id} · ${lastVisual.status} · вариантов: ${lastVisual.generated_count || lastVisual.requested_variants || 0}` : 'ещё не генерировали';
+  return `🧭 <b>Campaign State</b>
+
+<b>Фокус:</b> ${escapeHtml(active.player1 || '')} vs ${escapeHtml(active.player2 || '')}
+<b>Дата:</b> ${escapeHtml(formatShortDate(active.date, active.time))}
+<b>Статус:</b> ${escapeHtml(active.status || '')}
+<b>Event ID:</b> <code>${escapeHtml(active.event_id || '')}</code>
+
+<b>Референсы:</b> ${escapeHtml(refSummary)}
+<b>Последний visual job:</b> ${escapeHtml(visual)}
+
+<b>Следующий лучший шаг</b>
+Если референсы уже загружены: напиши <code>сгенерируй главный постер</code>. Я не буду пересоздавать кампанию и schedule.`;
+}
+
+function campaignsReply(campaigns = []) {
+  const lines = campaigns.map((c,i)=>`${i+1}. <b>${escapeHtml(c.player1 || '')} vs ${escapeHtml(c.player2 || '')}</b> · ${escapeHtml(formatShortDate(c.date, c.time))} · ${escapeHtml(c.division || '')} · <code>${escapeHtml(c.event_id || '')}</code>`).join('\n') || 'Активные кампании не найдены.';
+  return `🎾 <b>Активные кампании</b>
+
+${lines}
+
+Если запрос неоднозначный, бот должен уточнить, к какой кампании относится действие.`;
 }

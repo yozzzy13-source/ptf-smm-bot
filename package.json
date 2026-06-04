@@ -1,6 +1,6 @@
 {
   "name": "ptf-smm-bot",
-  "version": "0.3.4",
+  "version": "0.5.0",
   "description": "Phuket Tennis Family AI SMM OS: strategic SMM brain, event lifecycle planning, image generation, media planning, match-log analysis, and Google Sheets auto-migration.",
   "type": "module",
   "main": "src/index.js",
@@ -11,7 +11,9 @@
     "set:webhook": "node scripts/set-webhook.js",
     "test:router": "node scripts/test-router-local.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "axios": "^1.7.9",
     "dayjs": "^1.11.13",
@@ -25,5 +27,7 @@
     "uuid": "^11.0.3",
     "zod": "^3.24.1"
   },
-  "devDependencies": { "nodemon": "^3.1.9" }
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
 }

@@ -134,3 +134,24 @@ export function extractMediaFromMessage(message = {}) {
   }
   return null;
 }
+
+export async function downloadTelegramFileBuffer(fileId) {
+  const file = await getTelegramFile(fileId);
+  if (!file?.file_path) return null;
+  const url = telegramFileDownloadUrl(file.file_path);
+  const res = await axios.get(url, { responseType: 'arraybuffer' });
+  return {
+    buffer: Buffer.from(res.data),
+    filePath: file.file_path,
+    mimeType: inferMimeType(file.file_path),
+    filename: file.file_path.split('/').pop() || `${fileId}.jpg`
+  };
+}
+
+function inferMimeType(filePath = '') {
+  const lower = String(filePath || '').toLowerCase();
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  return 'image/jpeg';
+}

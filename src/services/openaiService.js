@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import OpenAI, { toFile } from 'openai';
 import { config } from '../config.js';
 import { safeJsonParse } from '../utils/safeJson.js';
 import { logger } from './logger.js';
@@ -90,4 +90,32 @@ export async function generateImageFromPrompt({ prompt, size = config.openaiImag
   } catch (err) {
     throw toAgentError(err, { model, image: true, size, quality, format });
   }
+}
+
+
+export async function generateImageWithReferenceBuffers({ prompt, referenceBuffers = [], size = config.openaiImageSize, quality = config.openaiImageQuality, format = config.openaiImageFormat, model = config.openaiImageModel, filename = 'ptf-generated-image.png', runLogger = logger }) {
+  if (!config.enableImageGeneration) return { enabled: false, note: 'ENABLE_IMAGE_GENERATION=false', prompt, size, quality, model };
+
+  if (referenceBuffers?.length) {
+    try {
+      const files = await Promise.all(referenceBuffers.slice(0, 6).map((r, i) => toFile(r.buffer, r.filename || `reference_${i + 1}.jpg`, { type: r.mimeType || 'image/jpeg' })));
+      const params = { model, prompt, image: files.length === 1 ? files[0] : files, size, quality };
+      if (format) params.output_format = format;
+      const response = await client.images.edit(params);
+      const item = response.data?.[0] || {};
+      const b64 = item.b64_json;
+      if (b64) {
+        const buffer = Buffer.from(b64, 'base64');
+        const drive = await uploadBufferToDrive({ buffer, filename, mimeType: format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png' });
+        runLogger.info({ model, size, quality, drive, references: referenceBuffers.length }, 'OpenAI image edit with references completed');
+        return { enabled: true, model, size, quality, format, revised_prompt: item.revised_prompt || '', drive, url: drive?.webViewLink || item.url || '', used_references: referenceBuffers.length, mode: 'edit_with_references' };
+      }
+    } catch (err) {
+      const d = extractErrorDetails(err);
+      runLogger.warn({ err: d.short, raw: d.raw, model, references: referenceBuffers.length }, 'Image edit with references failed; falling back to prompt-only generation');
+    }
+  }
+
+  const generated = await generateImageFromPrompt({ prompt, size, quality, format, model, filename, runLogger });
+  return { ...generated, used_references: 0, mode: 'prompt_only_fallback' };
 }

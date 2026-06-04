@@ -37,6 +37,11 @@ export const config = {
   openaiImageFormat: optional('OPENAI_IMAGE_FORMAT', 'png'),
   enableImageGeneration: optional('ENABLE_IMAGE_GENERATION', 'false') === 'true',
   maxImagesPerRequest: Number(optional('MAX_IMAGES_PER_REQUEST', '2')),
+  defaultVisualSamples: Number(optional('DEFAULT_VISUAL_SAMPLES', optional('MAX_IMAGES_PER_REQUEST', '2'))),
+  enableMediaScanner: optional('ENABLE_MEDIA_SCANNER', 'false') === 'true',
+  mediaScanFoldersJson: optional('MEDIA_SCAN_FOLDERS_JSON', '[]'),
+  routerConfidenceThreshold: Number(optional('ROUTER_CONFIDENCE_THRESHOLD', '0.72')),
+  clarificationFirst: optional('CLARIFICATION_FIRST', 'true') === 'true',
 
   spreadsheetId: required('GOOGLE_SHEETS_SPREADSHEET_ID'),
   googleServiceAccountBase64: required('GOOGLE_SERVICE_ACCOUNT_BASE64'),

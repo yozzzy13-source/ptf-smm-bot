@@ -30,12 +30,18 @@ import {
   saveApprovalItems,
   saveReminders,
   saveCampaignState,
-  saveDraftVersions
+  saveDraftVersions,
+  saveCurrentFocus,
+  saveCampaignLock
 } from './sheetsStorage.js';
 import { shortId } from '../utils/idUtils.js';
 import { classifyServiceMessage, serviceReply } from '../knowledge/serviceReplies.js';
 import { getMatchLogSummary } from './matchLogService.js';
 import { escapeHtml, shortText } from '../utils/html.js';
+import { isVisualOnlyRequest, processVisualOnlyRequest, isVisualRevisionRequest } from './visualOnlyService.js';
+import { stateAwareRoute } from './stateAwareRouterService.js';
+import { prepareMediaAvailabilityForCampaign } from './mediaAvailabilityService.js';
+import { buildReferenceBatchSummary } from './referenceBatchService.js';
 
 export async function processUserText({ text, messageMeta, runLogger }) {
   const runId = messageMeta.runId || shortId('RUN');
@@ -43,6 +49,21 @@ export async function processUserText({ text, messageMeta, runLogger }) {
   if (serviceKind) return { type:'service_reply', textRu: serviceReply(serviceKind), parseMode:'HTML' };
 
   await saveSystemLog({ run_id: runId, level:'INFO', agent:'Orchestrator', action:'start', status:'Started', input_summary:text.slice(0,200) });
+
+  const stateDecision = await stateAwareRoute({ text, messageMeta, runId, runLogger });
+
+  if (stateDecision.needs_clarification) {
+    return { type:'clarification', parseMode:'HTML', textRu:`❓ <b>Нужно выбрать кампанию</b>\n\n${escapeHtml(stateDecision.clarification_question_ru || 'К какой кампании относится действие?')}`, replyMarkup: stateDecision.replyMarkup };
+  }
+
+  if (stateDecision.intent === 'GENERATE_VISUAL' || stateDecision.intent === 'EDIT_VISUAL' || isVisualOnlyRequest(text) || isVisualRevisionRequest(text)) {
+    return processVisualOnlyRequest({ text, messageMeta, runLogger, decision: stateDecision });
+  }
+
+  if (stateDecision.intent === 'REGISTER_REFERENCE_ASSETS') {
+    const batch = await buildReferenceBatchSummary({ event: stateDecision.target_campaign });
+    return { type:'reference_batch', parseMode:'HTML', textRu: batch.textRu, replyMarkup: batch.replyMarkup };
+  }
 
   const [recentEvents, recentContent, recentPublished, publicationSchedule, partners, products] = await Promise.all([
     getRecentEvents(8), getRecentContentTasks(100), getRecentPublished(80), getPublicationSchedule(200), getSponsorIntegrations(100), getEcosystemProducts(100)
@@ -72,6 +93,7 @@ export async function processUserText({ text, messageMeta, runLogger }) {
     const rawPlan = await planEventCampaign({ route, strategicBrief: savedBrief, recentContent, recentPublished, publicationSchedule, runLogger });
     const plan = enforceLifecycleDepth(rawPlan.plan);
     const createdEvent=await createEvent(plan.event, { telegramSource:messageMeta.telegramSource, createdFrom:'Telegram AI Router' });
+    await saveCurrentFocus({ telegram_chat_id: messageMeta.chatId || '', related_event_id: createdEvent.event_id, campaign_id: createdEvent.event_id, focus_type: 'campaign', reason: 'Campaign created/updated', status: 'Active' });
     const createdTasks=await createContentTasks(plan.content_tasks, createdEvent);
     const savedSchedule=await savePublicationSchedule(plan.publication_schedule || [], createdEvent.event_id, createdTasks);
     const savedActions=await saveUserActionTasks(plan.user_action_tasks || [], createdEvent.event_id);
@@ -86,6 +108,8 @@ export async function processUserText({ text, messageMeta, runLogger }) {
     const reminders = await saveReminders(buildReminders({ createdEvent, savedSchedule, savedActions, chatId: messageMeta.chatId }));
     await saveDraftVersions(buildDraftVersions({ createdEvent, drafts }));
     const campaign = await saveCampaignState({ related_event_id: createdEvent.event_id, campaign_name: `${createdEvent.player1} vs ${createdEvent.player2}`, stage:'Campaign Created', status:'Pending Approval', pending_actions:`${approvals.length} approvals / ${reminders.length} reminders`, raw_json:{ plan, savedSchedule, savedActions, savedVisuals, savedImages } });
+    await saveCampaignLock({ related_event_id: createdEvent.event_id, campaign_id: createdEvent.event_id, lock_type: 'No Accidental Recreation', status: 'Active', locked_fields: ['schedule','campaign_plan','publication_tasks'], reason: 'v0.5 guardrail: visual/reference requests must not recreate approved campaign', created_by: 'bot' });
+    await prepareMediaAvailabilityForCampaign(createdEvent);
 
     await saveSystemLog({ run_id:runId, level:'INFO', agent:'Strategic Event Lifecycle', action:'create_event_campaign', status:'Created', output_summary:`${createdTasks.length} tasks / ${savedSchedule.length} schedule / ${savedActions.length} user tasks / ${savedVisuals.length} visuals / ${savedImages.length} images / ${savedMedia.length} media / ${approvals.length} approvals / ${reminders.length} reminders`, raw_json:{strategicBrief:savedBrief,plan,createdEvent,createdTasks,drafts,visualPack,savedMedia,approvals,reminders,campaign} });
 
