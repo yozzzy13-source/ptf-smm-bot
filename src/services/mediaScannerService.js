@@ -85,7 +85,9 @@ function playersFromPath(path='') {
 }
 
 function bestFor(type, path) {
-  if (/Campaign Raw Video|Player Video/i.test(type)) return 'Stories / Reels / highlight recap / player content';
+  if (/Campaign Raw Video/i.test(type)) return 'Event content: live stories / highlight reel / best rally / reaction / recap. One file can be linked to all players in the event.';
+  if (/Player Video/i.test(type)) return 'Player media: pre-event teaser / player profile / stories / reels / portrait/emotion clips. Not treated as specific match video unless in event folder.';
+  if (/Video/i.test(type)) return 'Need review: possible Stories / Reel / player content / recap depending on duration and content.';
   if (/Style Reference/i.test(type)) return 'Visual generation style reference';
   if (/Logo/i.test(type)) return 'Poster / cover / sponsor placement';
   if (/Player Photo/i.test(type)) return 'Player reference / poster / card';
@@ -98,6 +100,8 @@ function buildNotes({ detectedType, path, relatedEventId, relatedPlayers }) {
   if (relatedEventId) parts.push(`Event/campaign: ${relatedEventId}`);
   if (relatedPlayers.length) parts.push(`Players: ${relatedPlayers.join(', ')}`);
   if (/Raw_Media\/Videos/i.test(path)) parts.push('Do not duplicate this video into player folders; bot binds event video to participating players.');
+  if (/03_Players.*Videos/i.test(path)) parts.push('General player video asset: can be used for teaser/player profile/stories/reels, but not treated as footage of a specific match unless attached to campaign.');
+  if (/Videos/i.test(path)) parts.push('Content type is not fixed by folder. Bot should classify later by asset metadata: story clip / reel candidate / rally / emotion / portrait / recap.');
   return parts.join(' | ');
 }
 

@@ -42,6 +42,7 @@ import { isVisualOnlyRequest, processVisualOnlyRequest, isVisualRevisionRequest 
 import { stateAwareRoute } from './stateAwareRouterService.js';
 import { prepareMediaAvailabilityForCampaign } from './mediaAvailabilityService.js';
 import { buildReferenceBatchSummary } from './referenceBatchService.js';
+import { buildMediaOpsReply } from '../knowledge/mediaOsReplies.js';
 
 export async function processUserText({ text, messageMeta, runLogger }) {
   const runId = messageMeta.runId || shortId('RUN');
@@ -54,6 +55,10 @@ export async function processUserText({ text, messageMeta, runLogger }) {
 
   if (stateDecision.needs_clarification) {
     return { type:'clarification', parseMode:'HTML', textRu:`❓ <b>Нужно выбрать кампанию</b>\n\n${escapeHtml(stateDecision.clarification_question_ru || 'К какой кампании относится действие?')}`, replyMarkup: stateDecision.replyMarkup };
+  }
+
+  if (['MEDIA_OS_MANAGEMENT','MEDIA_CONTENT_TAXONOMY','PLAYER_CARD_FRONTEND_CAPTURE'].includes(stateDecision.intent)) {
+    return { type:'media_ops_answer', parseMode:'HTML', textRu: buildMediaOpsReply(text, stateDecision) };
   }
 
   if (stateDecision.intent === 'GENERATE_VISUAL' || stateDecision.intent === 'EDIT_VISUAL' || isVisualOnlyRequest(text) || isVisualRevisionRequest(text)) {
