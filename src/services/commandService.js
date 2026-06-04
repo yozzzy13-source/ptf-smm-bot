@@ -3,6 +3,8 @@ import { generateTodayPackSummary } from '../agents/todayPackAgent.js';
 import { ensureSheetHeaders } from './googleSheetsService.js';
 import { HEADERS } from '../schemas/sheetSchema.js';
 import { getRecentEvents, getPublicationSchedule, syncSourceRegistryDefaults, seedStrategicDefaults, cleanupTestCampaigns, getActiveCampaign, getCurrentFocus, getActiveCampaigns, getLastVisualJob, getRecentReferenceAssets } from './sheetsStorage.js';
+import { bootstrapMediaOs } from './mediaOsBootstrapService.js';
+import { scanMediaOs } from './mediaScannerService.js';
 import { escapeHtml } from '../utils/html.js';
 
 function normalizeCommand(text = '') {
@@ -77,6 +79,17 @@ export async function handleAdminCommand({ text, runLogger }) {
     return { type:'command', parseMode:'HTML', textRu: campaignsReply(campaigns) };
   }
 
+
+  if (command === '/bootstrap_media_os') {
+    const result = await bootstrapMediaOs();
+    return { type:'command', parseMode:'HTML', textRu: bootstrapMediaOsReply(result) };
+  }
+
+  if (command === '/scan_media_os') {
+    const result = await scanMediaOs();
+    return { type:'command', parseMode:'HTML', textRu: scanMediaOsReply(result) };
+  }
+
   if (['/clear_history', '/reset_context'].includes(command)) {
     return { type: 'command', parseMode: 'HTML', textRu: resetContextReply() };
   }
@@ -99,7 +112,7 @@ function commandsList() {
   return `🧭 <b>PTF Media Bot — команды</b>\n\n<b>Основное</b>\n<code>/commands</code> — показать все команды\n<code>/status</code> — состояние бота и ключевых режимов\n<code>/models</code> — какие модели прописаны в Railway\n<code>/today</code> — сегодняшний контент-пак\n<code>/upcoming</code> — последние/ближайшие события из таблицы\n<code>/schedule</code> — последние элементы Publication Schedule
 <code>/active_campaign</code> — текущая активная кампания
 <code>/campaign_state</code> — фокус, референсы, визуалы и следующий шаг
-<code>/campaigns</code> — список активных кампаний\n\n<b>Обслуживание</b>\n<code>/setup</code> — заново проверить/создать вкладки Google Sheets\n<code>/clear_history</code> — сбросить разговорный контекст чата\n<code>/reset_context</code> — то же самое\n<code>/restart</code> — перезапустить процесс бота, если включено в env\n\n<b>Картинки</b>\n<code>/image_on</code> — подсказка, как включить генерацию изображений\n<code>/image_off</code> — подсказка, как выключить генерацию изображений
+<code>/campaigns</code> — список активных кампаний\n<code>/bootstrap_media_os</code> — создать/проверить структуру Google Drive Media OS\n<code>/scan_media_os</code> — просканировать Media OS и записать новые файлы в Assets Library\n\n<b>Обслуживание</b>\n<code>/setup</code> — заново проверить/создать вкладки Google Sheets\n<code>/clear_history</code> — сбросить разговорный контекст чата\n<code>/reset_context</code> — то же самое\n<code>/restart</code> — перезапустить процесс бота, если включено в env\n\n<b>Картинки</b>\n<code>/image_on</code> — подсказка, как включить генерацию изображений\n<code>/image_off</code> — подсказка, как выключить генерацию изображений
 <code>/generate_visual</code> — visual-only генерация: не трогает кампанию и schedule\n\n<b>Кнопки в сообщениях</b>\n✅ Утвердить — фиксирует план/драфт/визуал\n✏️ Править — бот ждёт твою правку текстом\n✅ Опубликовал — отмечает задачу как опубликованную\n⏳ Ещё нет — оставляет в follow-up\n⏰ Позже — переносит/откладывает статус\n🚫 Пропустить — снимает напоминание\n\n<b>Как работать без команд</b>\nМожно писать обычным текстом:\n<pre>Через 2 дня матч Chris vs Robin. Подготовь SMM-сопровождение, прогрев, визуалы и задачи для меня.</pre>`;
 }
 
@@ -145,6 +158,37 @@ function formatShortDate(date = '', time = '') {
   const tm = String(time || '').match(/(\d{1,2}:\d{2})/)?.[1] || '';
   if (!m) return [date, tm].filter(Boolean).join(' · ');
   return `${Number(m[3])} ${months[Number(m[2]) - 1]}${tm ? ` · ${tm}` : ''}`;
+}
+
+
+function bootstrapMediaOsReply(result) {
+  if (!result?.ok) return `⚠️ <b>Media OS не создана</b>
+
+${escapeHtml(result?.message || 'Неизвестная ошибка')}
+
+Проверь env <code>PTF_MEDIA_OS_ROOT_FOLDER_ID</code>.`;
+  return `✅ <b>Media OS создана / проверена</b>
+
+<b>Создано новых папок:</b> ${String(result.created || 0)}
+<b>Записей в folder map:</b> ${String(result.mapped || 0)}
+<b>Root folder ID:</b> <code>${escapeHtml(result.rootFolderId || '')}</code>
+<b>README:</b> ${result.readmeLink ? `<a href="${escapeHtml(result.readmeLink)}">открыть</a>` : 'создан'}
+
+<b>Важно</b>
+Видео конкретного матча кладём в папку кампании, а не дублируем по папкам игроков. Бот связывает один файл с событием и участниками через таблицы.`;
+}
+
+function scanMediaOsReply(result) {
+  if (!result?.ok) return `⚠️ <b>Media scan не выполнен</b>
+
+${escapeHtml(result?.message || 'Неизвестная ошибка')}`;
+  return `🔎 <b>Media OS scan выполнен</b>
+
+<b>Папок проверено:</b> ${String(result.scannedFolders || 0)}
+<b>Новых файлов найдено:</b> ${String(result.newFiles || 0)}
+<b>Assets создано:</b> ${String(result.assetsCreated || 0)}
+
+Новые файлы записаны в <code>54_Media Scan Log</code> и <code>04_Assets Library</code>.`;
 }
 
 function resetContextReply() {

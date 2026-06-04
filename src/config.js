@@ -47,6 +47,9 @@ export const config = {
   googleServiceAccountBase64: required('GOOGLE_SERVICE_ACCOUNT_BASE64'),
   googleDriveMediaRoot: optional('GOOGLE_DRIVE_MEDIA_ROOT'),
   googleDriveMediaRootFolderId: optional('GOOGLE_DRIVE_MEDIA_ROOT_FOLDER_ID', optional('GOOGLE_DRIVE_MEDIA_ROOT')),
+  mediaOsRootFolderId: optional('PTF_MEDIA_OS_ROOT_FOLDER_ID', optional('GOOGLE_DRIVE_MEDIA_ROOT_FOLDER_ID', optional('GOOGLE_DRIVE_MEDIA_ROOT'))),
+  bootstrapMediaOsOnSetup: optional('BOOTSTRAP_MEDIA_OS_ON_SETUP', 'false') === 'true',
+  mediaScanMaxFiles: Number(optional('MEDIA_SCAN_MAX_FILES', '150')),
 
   matchLogSpreadsheetId: optional('MATCH_LOG_SPREADSHEET_ID', required('GOOGLE_SHEETS_SPREADSHEET_ID')),
   matchLogSheetName: optional('MATCH_LOG_SHEET_NAME', 'Cross_Division_Match_Log'),

@@ -49,7 +49,12 @@ export const SHEETS = {
   campaignLocks: '47_Campaign Locks',
   currentFocus: '48_Current Focus',
   globalCalendarAudit: '49_Global Calendar Audit',
-  mediaAvailability: '50_Media Availability'
+  mediaAvailability: '50_Media Availability',
+  mediaFolderMap: '51_Media Folder Map',
+  campaignFolderMap: '52_Campaign Folder Map',
+  playerFolderMap: '53_Player Folder Map',
+  mediaScanLog: '54_Media Scan Log',
+  mediaOsReadme: '55_Media OS README'
 };
 
 export const HEADERS = {
@@ -102,5 +107,10 @@ export const HEADERS = {
   [SHEETS.campaignLocks]: ['Lock ID','Timestamp','Related Event ID','Campaign ID','Lock Type','Status','Locked Fields','Reason','Created By','Last Updated'],
   [SHEETS.currentFocus]: ['Focus ID','Timestamp','Telegram Chat ID','Related Event ID','Campaign ID','Focus Type','Reason','Status','Last Interaction At','Notes'],
   [SHEETS.globalCalendarAudit]: ['Audit ID','Timestamp','Period','Campaigns Considered','Conflicts','Balance Notes','Recommendations','Raw JSON'],
-  [SHEETS.mediaAvailability]: ['Media Check ID','Timestamp','Related Event ID','Campaign ID','Needed Asset Type','Primary Format','Supporting Format','Fallback Format','Search Scope','Availability','Found Links','Status','Notes']
+  [SHEETS.mediaAvailability]: ['Media Check ID','Timestamp','Related Event ID','Campaign ID','Needed Asset Type','Primary Format','Supporting Format','Fallback Format','Search Scope','Availability','Found Links','Status','Notes'],
+  [SHEETS.mediaFolderMap]: ['Folder Key','Folder Name','Folder ID','Parent Key','Parent ID','Path','Purpose','Status','Created At','Last Checked','Notes'],
+  [SHEETS.campaignFolderMap]: ['Campaign ID','Related Event ID','Campaign Name','Folder ID','Path','Status','Created At','Last Checked','Notes'],
+  [SHEETS.playerFolderMap]: ['Player ID','Player Name','Folder ID','Path','Status','Created At','Last Checked','Notes'],
+  [SHEETS.mediaScanLog]: ['Scan ID','Timestamp','Drive File ID','File Name','Mime Type','Folder ID','Folder Path','Detected Type','Related Event ID','Related Players','Status','Drive Link','Notes'],
+  [SHEETS.mediaOsReadme]: ['Section','Title','Content','Last Updated']
 };

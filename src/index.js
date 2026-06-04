@@ -13,6 +13,7 @@ import { startFollowupScheduler } from './services/reminderService.js';
 import { generateTodayPackSummary } from './agents/todayPackAgent.js';
 import { saveSystemLog, syncSourceRegistryDefaults, seedStrategicDefaults, saveTelegramMessageLink } from './services/sheetsStorage.js';
 import { ensureSheetHeaders } from './services/googleSheetsService.js';
+import { bootstrapMediaOs } from './services/mediaOsBootstrapService.js';
 import { HEADERS } from './schemas/sheetSchema.js';
 
 const app = express();
@@ -96,7 +97,7 @@ app.post('/telegram/webhook/:secret', async (req, res) => {
 
 async function bootstrap() {
   if (config.autoSetupSheets) {
-    try { await ensureSheetHeaders(HEADERS); await syncSourceRegistryDefaults(); if (config.seedStrategicDefaults) await seedStrategicDefaults(); logger.info('Google Sheet structure ensured and strategic defaults seeded'); }
+    try { await ensureSheetHeaders(HEADERS); await syncSourceRegistryDefaults(); if (config.seedStrategicDefaults) await seedStrategicDefaults(); if (config.bootstrapMediaOsOnSetup) await bootstrapMediaOs(); logger.info('Google Sheet structure ensured, strategic defaults seeded, media OS optional bootstrap completed'); }
     catch (err) { logger.error({ err: err.stack || err.message }, 'Google Sheet auto-setup failed. Bot will start, but Sheets operations may fail until fixed.'); }
   }
   app.listen(config.port, () => { logger.info({ port:config.port }, 'PTF SMM Bot started'); startDailyPackScheduler(); startFollowupScheduler(); });
