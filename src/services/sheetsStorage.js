@@ -1,5 +1,5 @@
 import { SHEETS } from '../schemas/sheetSchema.js';
-import { appendRow, appendRows, readRange } from './googleSheetsService.js';
+import { appendRow, appendRows, readRange, updateRange } from './googleSheetsService.js';
 import { logger } from './logger.js';
 import { shortId } from '../utils/idUtils.js';
 import { nowIso, weekKey } from '../utils/dateUtils.js';
@@ -84,4 +84,109 @@ export async function seedStrategicDefaults() {
       ['Image','OPENAI_IMAGE_MODEL','gpt-image-2','gpt-image-1','Image generation','Active','Can be disabled with ENABLE_IMAGE_GENERATION=false']
     ]);
   } catch (err) { logger.warn({ err: err.message }, 'Failed to seed strategic defaults'); }
+}
+
+export async function saveApprovalItems(items = []) {
+  const rows = items.map((i) => [
+    i.approval_id || shortId('APR'), nowIso(), i.related_event_id || '', i.object_type || '', i.object_id || '', i.title || '', i.summary || '', i.status || 'Pending Approval', i.priority || 'Medium', i.telegram_chat_id || '', i.telegram_message_id || '', i.owner || 'Kostya', i.notes || '', nowIso()
+  ]);
+  if (rows.length) await appendRows(SHEETS.approvalQueue, rows);
+  return rows.map((r) => ({ approval_id: r[0], object_type: r[3], object_id: r[4], title: r[5], status: r[7] }));
+}
+
+export async function saveReminders(items = []) {
+  const rows = items.map((i) => [
+    i.reminder_id || shortId('REM'), nowIso(), i.due_date || '', i.due_time || '', i.timezone || config.timezone, i.reminder_type || '', i.related_event_id || '', i.related_object_type || '', i.related_object_id || '', i.title || '', i.message || '', i.status || 'Pending', i.repeat_count || 0, i.last_sent_at || '', i.next_retry_at || '', i.telegram_chat_id || config.followupTelegramChatId || '', i.telegram_message_id || '', i.notes || ''
+  ]);
+  if (rows.length) await appendRows(SHEETS.reminders, rows);
+  return rows.map((r) => ({ reminder_id: r[0], due_date: r[2], due_time: r[3], type: r[5], title: r[9], status: r[11], related_object_id: r[8] }));
+}
+
+export async function saveFollowupLog(log = {}) {
+  await appendRow(SHEETS.followupLog, [shortId('FUP'), nowIso(), log.reminder_id || '', log.related_object_id || '', log.action || '', log.old_status || '', log.new_status || '', log.telegram_chat_id || '', log.telegram_message_id || '', log.notes || '', JSON.stringify(log.raw_json || {})]);
+}
+
+export async function saveTelegramMessageLink(link = {}) {
+  const id = shortId('TML');
+  await appendRow(SHEETS.telegramMessageLinks, [id, nowIso(), link.telegram_chat_id || '', link.telegram_message_id || '', link.direction || '', link.related_type || '', link.related_id || '', link.context || '', link.status || 'Active', link.notes || '']);
+  return { ...link, link_id: id };
+}
+
+export async function saveUserDecision(decision = {}) {
+  const id = shortId('DEC');
+  await appendRow(SHEETS.userDecisions, [id, nowIso(), decision.telegram_chat_id || '', decision.telegram_message_id || '', decision.related_type || '', decision.related_id || '', decision.decision || '', decision.comment || '', decision.status_before || '', decision.status_after || '', decision.raw_text || '', JSON.stringify(decision.raw_json || {})]);
+  return { ...decision, decision_id: id };
+}
+
+export async function saveReferenceAsset(asset = {}) {
+  const id = asset.reference_id || shortId('REF');
+  await appendRow(SHEETS.referenceAssets, [id, nowIso(), asset.source || '', asset.telegram_chat_id || '', asset.telegram_message_id || '', asset.telegram_file_id || '', asset.drive_link || '', asset.reference_type || '', asset.related_player || '', asset.related_event_id || '', asset.status || 'Needs Classification', asset.notes || '', nowIso()]);
+  return { ...asset, reference_id: id };
+}
+
+export async function saveStylePackFromReference(referenceId, meta = {}) {
+  const id = shortId('STL');
+  await appendRow(SHEETS.stylePack, [id, nowIso(), `Style from ${referenceId}`, 'Visual Reference', '', 'Use as approved PTF visual reference', '', referenceId, 'Active', 'High', meta.notes || '', nowIso()]);
+  return { style_id: id, reference_id: referenceId };
+}
+
+export async function saveCampaignState(state = {}) {
+  const id = state.campaign_id || shortId('CMP');
+  await appendRow(SHEETS.campaignState, [id, nowIso(), state.related_event_id || '', state.campaign_name || '', state.stage || 'Created', state.status || 'Active', state.approved_schedule || '', state.approved_visuals || '', state.approved_drafts || '', state.pending_actions || '', nowIso(), state.notes || '', JSON.stringify(state.raw_json || {})]);
+  return { ...state, campaign_id: id };
+}
+
+export async function saveDraftVersions(items = []) {
+  const rows = items.map((d) => [d.draft_id || shortId('DRF'), nowIso(), d.related_event_id || '', d.related_content_id || '', d.draft_type || '', d.version || 'v1', d.text || '', d.status || 'Pending Approval', d.feedback || '', d.telegram_message_id || '', d.notes || '', nowIso()]);
+  if (rows.length) await appendRows(SHEETS.draftVersions, rows);
+  return rows.map((r) => ({ draft_id: r[0], type: r[4], status: r[7] }));
+}
+
+export async function getDueReminders(limit = 20) {
+  let rows = [];
+  try { rows = await readRange(SHEETS.reminders, 'A2:R700'); } catch (err) { logger.warn({ err: err.message }, 'Failed to read reminders'); return []; }
+  const now = new Date();
+  return rows.map((r, idx) => ({ row_number: idx + 2, reminder_id: r[0], created_at: r[1], due_date: r[2], due_time: r[3], timezone: r[4], reminder_type: r[5], related_event_id: r[6], related_object_type: r[7], related_object_id: r[8], title: r[9], message: r[10], status: r[11], repeat_count: Number(r[12] || 0), last_sent_at: r[13], next_retry_at: r[14], telegram_chat_id: r[15], telegram_message_id: r[16], notes: r[17] }))
+    .filter((r) => ['Pending', 'Pending Retry'].includes(r.status || 'Pending'))
+    .filter((r) => r.repeat_count < config.maxReminderRepeats)
+    .filter((r) => isReminderDue(r, now))
+    .slice(0, limit);
+}
+
+function isReminderDue(r, now) {
+  if (r.next_retry_at) return new Date(r.next_retry_at) <= now;
+  const ds = `${r.due_date || ''}T${normalizeTime(r.due_time)}:00+07:00`;
+  const due = new Date(ds);
+  if (Number.isNaN(due.getTime())) return false;
+  return due <= now;
+}
+function normalizeTime(t = '') { const m = String(t || '').match(/(\d{1,2}):(\d{2})/); return m ? `${m[1].padStart(2,'0')}:${m[2]}` : '09:00'; }
+
+export async function markReminderSent(reminderId, telegramMessageId = '') {
+  const rows = await readRange(SHEETS.reminders, 'A2:R700');
+  const idx = rows.findIndex((r) => r[0] === reminderId);
+  if (idx < 0) return false;
+  const rowNumber = idx + 2;
+  const oldRepeat = Number(rows[idx][12] || 0);
+  const next = new Date(Date.now() + config.reminderRetryMinutes * 60 * 1000).toISOString();
+  await updateRange(SHEETS.reminders, `L${rowNumber}:Q${rowNumber}`, [['Pending Retry', oldRepeat + 1, nowIso(), next, rows[idx][15] || config.followupTelegramChatId || '', telegramMessageId]]);
+  return true;
+}
+
+export async function markReminderStatus(reminderId, status, notes = '') {
+  const rows = await readRange(SHEETS.reminders, 'A2:R700');
+  const idx = rows.findIndex((r) => r[0] === reminderId);
+  if (idx < 0) return false;
+  const rowNumber = idx + 2;
+  await updateRange(SHEETS.reminders, `L${rowNumber}:R${rowNumber}`, [[status, rows[idx][12] || 0, rows[idx][13] || '', rows[idx][14] || '', rows[idx][15] || '', rows[idx][16] || '', notes]]);
+  return true;
+}
+
+export async function updateApprovalStatus(approvalOrObjectId, status, notes = '') {
+  const rows = await readRange(SHEETS.approvalQueue, 'A2:N700');
+  const idx = rows.findIndex((r) => r[0] === approvalOrObjectId || r[4] === approvalOrObjectId);
+  if (idx < 0) return false;
+  const rowNumber = idx + 2;
+  await updateRange(SHEETS.approvalQueue, `H${rowNumber}:N${rowNumber}`, [[status, rows[idx][8] || '', rows[idx][9] || '', rows[idx][10] || '', rows[idx][11] || '', notes || rows[idx][12] || '', nowIso()]]);
+  return true;
 }

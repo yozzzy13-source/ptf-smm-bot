@@ -58,3 +58,36 @@ export async function sendPhoto(chatId, photo, options = {}) {
     throw err;
   }
 }
+
+
+export async function answerCallbackQuery(callbackQueryId, text = '', options = {}) {
+  if (!callbackQueryId) return null;
+  return postTelegram('/answerCallbackQuery', { callback_query_id: callbackQueryId, text, show_alert: false, ...options });
+}
+
+export async function editMessageReplyMarkup(chatId, messageId, replyMarkup = null) {
+  if (!chatId || !messageId) return null;
+  return postTelegram('/editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: replyMarkup });
+}
+
+export async function getTelegramFile(fileId) {
+  if (!fileId) return null;
+  const res = await postTelegram('/getFile', { file_id: fileId });
+  return res.data?.result || null;
+}
+
+export function telegramFileDownloadUrl(filePath) {
+  if (!filePath) return '';
+  return `https://api.telegram.org/file/bot${config.telegramBotToken}/${filePath}`;
+}
+
+export function extractMediaFromMessage(message = {}) {
+  if (Array.isArray(message.photo) && message.photo.length) {
+    const best = message.photo[message.photo.length - 1];
+    return { type: 'photo', fileId: best.file_id, fileUniqueId: best.file_unique_id, caption: message.caption || '' };
+  }
+  if (message.document && String(message.document.mime_type || '').startsWith('image/')) {
+    return { type: 'image_document', fileId: message.document.file_id, fileUniqueId: message.document.file_unique_id, fileName: message.document.file_name || '', caption: message.caption || '' };
+  }
+  return null;
+}

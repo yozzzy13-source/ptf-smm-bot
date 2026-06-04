@@ -55,6 +55,20 @@ export async function appendRows(sheetName, rows, spreadsheetId = config.spreads
   return res.data;
 }
 
+
+export async function updateRange(sheetName, a1Range, values, spreadsheetId = config.spreadsheetId) {
+  const sheets = await getSheetsClient(spreadsheetId);
+  const range = `'${sheetName}'!${a1Range}`;
+  const res = await withRetry(() => sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values }
+  }), `updateRange:${sheetName}!${a1Range}`);
+  logger.debug({ sheetName, range }, 'Updated range');
+  return res.data;
+}
+
 export async function readRange(sheetName, a1Range = 'A:Z', spreadsheetId = config.spreadsheetId) {
   const sheets = await getSheetsClient(spreadsheetId);
   const range = `'${sheetName}'!${a1Range}`;

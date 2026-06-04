@@ -58,5 +58,11 @@ export const config = {
   seedStrategicDefaults: optional('SEED_STRATEGIC_DEFAULTS', 'true') === 'true',
   dailyPackHour: Number(optional('DAILY_PACK_HOUR', '13')),
   dailyPackTelegramChatId: optional('DAILY_PACK_TELEGRAM_CHAT_ID'),
-  eveningPublishWindow: optional('EVENING_PUBLISH_WINDOW', '18:00-21:00')
+  eveningPublishWindow: optional('EVENING_PUBLISH_WINDOW', '18:00-21:00'),
+  enableFollowupScheduler: optional('ENABLE_FOLLOWUP_SCHEDULER', 'true') === 'true',
+  followupTelegramChatId: optional('FOLLOWUP_TELEGRAM_CHAT_ID', optional('DAILY_PACK_TELEGRAM_CHAT_ID')),
+  followupIntervalMinutes: Number(optional('FOLLOWUP_INTERVAL_MINUTES', '5')),
+  reminderRetryMinutes: Number(optional('REMINDER_RETRY_MINUTES', '60')),
+  maxReminderRepeats: Number(optional('MAX_REMINDER_REPEATS', '3')),
+  sendMultiMessageReplies: optional('SEND_MULTI_MESSAGE_REPLIES', 'true') === 'true'
 };

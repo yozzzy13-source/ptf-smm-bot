@@ -8,7 +8,30 @@ import { analyzeStorylineFromText } from '../agents/storylineAgent.js';
 import { buildVisualPack } from '../agents/visualProductionAgent.js';
 import { suggestMediaForEvent } from '../agents/mediaSuggestionAgent.js';
 import { enforceLifecycleDepth } from './lifecycleScheduleService.js';
-import { createEvent, createContentTasks, getFeedbackRules, getRecentContentTasks, getRecentPublished, getPublicationSchedule, getRecentEvents, getSponsorIntegrations, getEcosystemProducts, saveSystemLog, saveVisualPrompts, saveGeneratedImages, savePublicationSchedule, saveMediaSuggestions, saveUserActionTasks, saveStrategicBrief } from './sheetsStorage.js';
+import { actionKeyboard } from './telegramKeyboardService.js';
+import { config } from '../config.js';
+import {
+  createEvent,
+  createContentTasks,
+  getFeedbackRules,
+  getRecentContentTasks,
+  getRecentPublished,
+  getPublicationSchedule,
+  getRecentEvents,
+  getSponsorIntegrations,
+  getEcosystemProducts,
+  saveSystemLog,
+  saveVisualPrompts,
+  saveGeneratedImages,
+  savePublicationSchedule,
+  saveMediaSuggestions,
+  saveUserActionTasks,
+  saveStrategicBrief,
+  saveApprovalItems,
+  saveReminders,
+  saveCampaignState,
+  saveDraftVersions
+} from './sheetsStorage.js';
 import { shortId } from '../utils/idUtils.js';
 import { classifyServiceMessage, serviceReply } from '../knowledge/serviceReplies.js';
 import { getMatchLogSummary } from './matchLogService.js';
@@ -18,6 +41,7 @@ export async function processUserText({ text, messageMeta, runLogger }) {
   const runId = messageMeta.runId || shortId('RUN');
   const serviceKind = classifyServiceMessage(text);
   if (serviceKind) return { type:'service_reply', textRu: serviceReply(serviceKind), parseMode:'HTML' };
+
   await saveSystemLog({ run_id: runId, level:'INFO', agent:'Orchestrator', action:'start', status:'Started', input_summary:text.slice(0,200) });
 
   const [recentEvents, recentContent, recentPublished, publicationSchedule, partners, products] = await Promise.all([
@@ -28,7 +52,10 @@ export async function processUserText({ text, messageMeta, runLogger }) {
 
   if (route.intent === 'service_help') return { type:'service_reply', textRu:serviceReply('help'), parseMode:'HTML' };
   if (route.intent === 'ask_clarification' || route.confidence < 0.55) return { type:'clarification', textRu:`❓ <b>Нужно уточнение</b>\n\n${escapeHtml(route.clarification_question_ru || 'Уточни, пожалуйста, что нужно сделать?')}`, parseMode:'HTML' };
-  if (route.intent === 'save_feedback_rule') { const { feedback, saved } = await processFeedback({ text, runLogger }); return { type:'feedback', textRu:`✅ <b>Принял правку</b>\n\n${escapeHtml(feedback.response_ru || (saved ? 'Запомнил правило.' : 'Принял правку.'))}`, parseMode:'HTML' }; }
+  if (route.intent === 'save_feedback_rule') {
+    const { feedback, saved } = await processFeedback({ text, runLogger });
+    return { type:'feedback', textRu:`✅ <b>Принял правку</b>\n\n${escapeHtml(feedback.response_ru || (saved ? 'Запомнил правило.' : 'Принял правку.'))}`, parseMode:'HTML' };
+  }
   if (route.intent === 'generate_today_pack') { const pack=await generateTodayPackSummary(); return { type:'today_pack', textRu:formatTodayPack(pack), parseMode:'HTML' }; }
   if (route.intent === 'analyze_storylines') { const matchLogSummary=await getMatchLogSummary(60); const storyline=await analyzeStorylineFromText({ text, matchLogSummary }); return { type:'storyline', textRu:formatStorylineReply(storyline), parseMode:'HTML' }; }
 
@@ -38,7 +65,7 @@ export async function processUserText({ text, messageMeta, runLogger }) {
 
   if (route.intent === 'strategic_content_plan' || route.intent === 'league_recap_campaign') {
     await saveSystemLog({ run_id:runId, level:'INFO', agent:'Strategic SMM Director', action:route.intent, status:'Brief created', raw_json:savedBrief });
-    return { type:'strategic_brief', textRu:formatStrategicBriefReply(savedBrief), parseMode:'HTML' };
+    return { type:'strategic_brief', textRu:formatStrategicBriefReply(savedBrief), parseMode:'HTML', replyMarkup: actionKeyboard('brief', savedBrief.brief_id || savedBrief.id || 'brief') };
   }
 
   if (route.intent === 'create_event_campaign' || route.intent === 'create_visual_pack') {
@@ -54,36 +81,77 @@ export async function processUserText({ text, messageMeta, runLogger }) {
     const savedVisuals=await saveVisualPrompts(visualPack.assets, createdEvent.event_id);
     const savedImages=await saveGeneratedImages(visualPack.assets, createdEvent.event_id);
     const savedMedia=await saveMediaSuggestions(await suggestMediaForEvent({ event:createdEvent }), createdEvent.event_id);
-    await saveSystemLog({ run_id:runId, level:'INFO', agent:'Strategic Event Lifecycle', action:'create_event_campaign', status:'Created', output_summary:`${createdTasks.length} tasks / ${savedSchedule.length} schedule / ${savedActions.length} user tasks / ${savedVisuals.length} visuals / ${savedImages.length} images / ${savedMedia.length} media`, raw_json:{strategicBrief:savedBrief,plan,createdEvent,createdTasks,drafts,visualPack,savedMedia} });
-    return { type:'event_campaign', textRu:formatEventCampaignReply({ createdEvent, createdTasks, drafts, plan, savedVisuals, savedImages, savedSchedule, savedActions, savedMedia, strategicBrief:savedBrief }), parseMode:'HTML', telegramImages: collectTelegramImages(visualPack.assets) };
+
+    const approvals = await saveApprovalItems(buildApprovals({ createdEvent, savedSchedule, savedVisuals, drafts }));
+    const reminders = await saveReminders(buildReminders({ createdEvent, savedSchedule, savedActions, chatId: messageMeta.chatId }));
+    await saveDraftVersions(buildDraftVersions({ createdEvent, drafts }));
+    const campaign = await saveCampaignState({ related_event_id: createdEvent.event_id, campaign_name: `${createdEvent.player1} vs ${createdEvent.player2}`, stage:'Campaign Created', status:'Pending Approval', pending_actions:`${approvals.length} approvals / ${reminders.length} reminders`, raw_json:{ plan, savedSchedule, savedActions, savedVisuals, savedImages } });
+
+    await saveSystemLog({ run_id:runId, level:'INFO', agent:'Strategic Event Lifecycle', action:'create_event_campaign', status:'Created', output_summary:`${createdTasks.length} tasks / ${savedSchedule.length} schedule / ${savedActions.length} user tasks / ${savedVisuals.length} visuals / ${savedImages.length} images / ${savedMedia.length} media / ${approvals.length} approvals / ${reminders.length} reminders`, raw_json:{strategicBrief:savedBrief,plan,createdEvent,createdTasks,drafts,visualPack,savedMedia,approvals,reminders,campaign} });
+
+    const messages = formatEventCampaignMessages({ createdEvent, drafts, plan, savedVisuals, savedImages, savedSchedule, savedActions, savedMedia, strategicBrief:savedBrief, approvals, reminders, campaign });
+    return { type:'event_campaign', textRu:messages.map(m=>m.text).join('\n\n'), parseMode:'HTML', messages, telegramImages: collectTelegramImages(visualPack.assets) };
   }
   return { type:'unknown', textRu:'Я понял сообщение, но пока не уверен, какой сценарий запустить. Переформулируй как задачу для SMM?' };
 }
 
-function formatEventCampaignReply({ createdEvent, drafts, plan, savedVisuals, savedImages, savedSchedule, savedActions, savedMedia, strategicBrief }) {
-  const eventLine = `${createdEvent.player1 || 'Player 1'} vs ${createdEvent.player2 || 'Player 2'} · ${createdEvent.division || 'Division'} · ${createdEvent.date || 'date TBC'} ${createdEvent.time || ''} · ${createdEvent.venue || 'venue TBC'}`;
-  const pre = (savedSchedule||[]).filter(s=>!String(s.channel).toLowerCase().includes('user')).slice(0,10).map(s=>`• ${escapeHtml(s.date)} ${escapeHtml(s.time)} — ${escapeHtml(s.channel)} / ${escapeHtml(s.format)}: ${escapeHtml(s.title)}`).join('\n') || '• План публикаций создан в таблице.';
-  const actions=(savedActions||[]).slice(0,5).map(a=>`• ${escapeHtml(a.date)} ${escapeHtml(a.time)} — ${escapeHtml(a.task)}`).join('\n') || '• Задачи для съёмки не сформированы.';
-  const tail=(plan.post_event_tail||[]).slice(0,5).map(x=>`• ${escapeHtml(x.day)} — ${escapeHtml(x.format)} / ${escapeHtml(x.channel)}: ${escapeHtml(x.idea)}`).join('\n') || '• Хвост после события не сформирован.';
-  const visualText=(savedVisuals||[]).slice(0,6).map(v=>`• ${escapeHtml(v.asset_type)} — ${escapeHtml(v.size || v.channel)} (${escapeHtml(v.generation_status)})`).join('\n') || '• Визуальные промпты не сформированы.';
-  const imageText=(savedImages||[]).slice(0,3).map(i=>`• ${escapeHtml(i.asset_type)} — ${i.link ? `<a href="${escapeHtml(i.link)}">Drive</a>` : escapeHtml(i.status)}`).join('\n') || '• Генерация изображений выключена или пока не выполнена.';
-  const mediaText=(savedMedia||[]).slice(0,4).map(m=>`• ${escapeHtml(m.player || 'Media')} — ${escapeHtml(m.asset_type)}: ${escapeHtml(m.status)}${m.missing_asset ? ` / ${escapeHtml(m.missing_asset)}` : ''}`).join('\n') || '• Медиа пока не найдено.';
-  const hashtags=(drafts.hashtags || []).slice(0,10).join(' ');
-  const missing=plan.missing_assets?.length ? plan.missing_assets.slice(0,5).map(x=>`• ${escapeHtml(x)}`).join('\n') : '• Критичных пропусков не найдено.';
-  return `✅ <b>SMM-кампания создана</b>\n\n<b>🎾 Событие</b>\n${escapeHtml(eventLine)}\n\n<b>🧠 Стратегия</b>\n${escapeHtml(shortText(strategicBrief.strategic_thesis_ru || plan.lifecycle_strategy_ru || '', 420))}\n\n<b>📅 План публикаций</b>\n${pre}\n\n<b>🎥 Что нужно сделать тебе</b>\n${actions}\n\n<b>🧵 Хвост после события</b>\n${tail}\n\n<b>🎨 Визуалы</b>\n${visualText}\n\n<b>🖼 Сгенерированные картинки</b>\n${imageText}\n\n<b>🎬 Медиа</b>\n${mediaText}\n\n<b>🏷 Hashtags</b>\n${escapeHtml(hashtags || '#PhuketTennisFamily #PTF #PhuketTennis')}\n\n<b>📝 Черновики</b>\nTelegram:\n<pre>${escapeHtml(shortText(drafts.telegram_draft,700))}</pre>\nIG:\n<pre>${escapeHtml(shortText(drafts.instagram_caption,700))}</pre>\n\n<b>⚠️ Нужно проверить / доснять</b>\n${missing}\n\n<b>➡️ Следующий шаг</b>\nПроверь расписание и напиши правки обычным текстом.`;
+function buildApprovals({ createdEvent, savedSchedule, savedVisuals, drafts }) {
+  const items = [
+    { related_event_id: createdEvent.event_id, object_type:'campaign_plan', object_id: createdEvent.event_id, title:'Campaign plan', summary:'Approve full campaign plan', priority:'High' },
+    { related_event_id: createdEvent.event_id, object_type:'telegram_draft', object_id: shortId('TGD'), title:'Telegram draft', summary: shortText(drafts.telegram_draft || '', 260), priority:'High' },
+    { related_event_id: createdEvent.event_id, object_type:'instagram_caption', object_id: shortId('IGD'), title:'Instagram caption', summary: shortText(drafts.instagram_caption || '', 260), priority:'High' }
+  ];
+  for (const s of (savedSchedule || []).slice(0, 8)) items.push({ related_event_id: createdEvent.event_id, object_type:'schedule_item', object_id:s.schedule_id, title:s.title, summary:`${s.date} ${s.time} · ${s.channel}/${s.format}`, priority:'Medium' });
+  for (const v of (savedVisuals || []).slice(0, 4)) items.push({ related_event_id: createdEvent.event_id, object_type:'visual', object_id:v.visual_id, title:v.asset_type, summary:`${v.channel || ''} ${v.size || ''}`, priority:'Medium' });
+  return items;
 }
-function formatStrategicBriefReply(brief) { return `🧠 <b>Strategic SMM Brief создан</b>\n\n<b>Горизонт:</b> ${escapeHtml(brief.horizon || '')}\n<b>Стадия:</b> ${escapeHtml(brief.season_stage || '')}\n\n<b>Главная цель</b>\n${escapeHtml(brief.main_goal_ru || '')}\n\n<b>Тезис</b>\n${escapeHtml(brief.strategic_thesis_ru || '')}\n\n<b>Приоритеты</b>\n${(brief.content_priorities||[]).slice(0,6).map(x=>`• ${escapeHtml(x)}`).join('\n')}\n\n<b>Микс</b>\n${(brief.recommended_mix||[]).slice(0,6).map(x=>`• ${escapeHtml(x)}`).join('\n')}\n\nЯ сохранил стратегический brief в таблицу. Следующим шагом можно попросить: “разложи это в календарь на 2 недели”.`; }
-function formatStorylineReply(storyline) { return `💡 <b>Storyline найден</b>\n\n<b>Тип:</b> ${escapeHtml(storyline.trigger_type)}\n<b>Канал:</b> ${escapeHtml(storyline.suggested_channel)}\n<b>Формат:</b> ${escapeHtml(storyline.suggested_format)}\n\n<b>Почему важно</b>\n${escapeHtml(storyline.why_it_matters)}\n\n<b>Telegram draft</b>\n<pre>${escapeHtml(shortText(storyline.telegram_draft,700))}</pre>`; }
-function formatTodayPack(pack) { const ready=pack.ready.map((r,i)=>`${i+1}. ${escapeHtml(r[3])} / ${escapeHtml(r[4])} — ${escapeHtml(r[6])} (${escapeHtml(r[11])})`).join('\n') || 'Нет ready-задач.'; const planned=pack.planned.map((r,i)=>`${i+1}. ${escapeHtml(r[3])} / ${escapeHtml(r[4])} — ${escapeHtml(r[6])} (${escapeHtml(r[11])})`).join('\n') || 'Нет planned-задач.'; return `📌 <b>Today’s PTF Content Pack</b>\n\n<b>Ready</b>\n${ready}\n\n<b>Planned</b>\n${planned}\n\nРекомендация: выбери 1 основной вечерний пост + 2–4 Stories. Автопостинг выключен.`; }
 
-function collectTelegramImages(assets = []) {
-  return (assets || [])
-    .filter((a) => a?.generated_image?.drive?.uploaded)
-    .map((a) => ({
-      assetType: a.asset_type || 'visual',
-      caption: `🖼 ${a.asset_type || 'Generated image'}`,
-      photoUrl: a.generated_image.drive.directImageUrl || a.generated_image.drive.webContentLink || a.generated_image.drive.webViewLink || '',
-      driveLink: a.generated_image.drive.webViewLink || ''
-    }))
-    .filter((x) => x.photoUrl);
+function buildReminders({ createdEvent, savedSchedule, savedActions, chatId }) {
+  const reminders = [];
+  for (const s of (savedSchedule || [])) {
+    reminders.push({
+      due_date:s.date, due_time: reminderTimeBefore(s.time, 4), reminder_type:'Publish Follow-up', related_event_id:createdEvent.event_id, related_object_type:'schedule_item', related_object_id:s.schedule_id, title:s.title, telegram_chat_id:chatId,
+      message:`Нужно подготовить/опубликовать: ${s.channel} / ${s.format} — ${s.title}. Запланировано на ${s.date} ${s.time}. Если уже опубликовано — нажми кнопку.`
+    });
+  }
+  for (const a of (savedActions || [])) {
+    reminders.push({
+      due_date:a.date, due_time: normalizeTaskTime(a.time), reminder_type:'User Action', related_event_id:createdEvent.event_id, related_object_type:'user_action', related_object_id:a.task_id, title:a.type || 'User task', telegram_chat_id:chatId,
+      message:`Задача для тебя: ${a.task}. Нужно к ${a.date} ${a.time}.`
+    });
+  }
+  return reminders.slice(0, 30);
 }
+function normalizeTaskTime(t='') { return /(\d{1,2}:\d{2})/.test(t) ? t.match(/(\d{1,2}:\d{2})/)[1] : '15:00'; }
+function reminderTimeBefore(t='18:00', hours=4) { const m=String(t).match(/(\d{1,2}):(\d{2})/); if(!m) return '13:00'; const d=new Date(Date.UTC(2026,0,1,Number(m[1]),Number(m[2]))); d.setUTCHours(d.getUTCHours()-hours); return `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`; }
+function buildDraftVersions({ createdEvent, drafts }) { return [
+  { related_event_id:createdEvent.event_id, draft_type:'Telegram', text:drafts.telegram_draft || '', status:'Pending Approval' },
+  { related_event_id:createdEvent.event_id, draft_type:'Instagram Caption', text:drafts.instagram_caption || '', status:'Pending Approval' },
+  { related_event_id:createdEvent.event_id, draft_type:'Poster Prompt', text:drafts.poster_prompt || '', status:'Pending Approval' }
+]; }
+
+function formatEventCampaignMessages({ createdEvent, drafts, plan, savedVisuals, savedImages, savedSchedule, savedActions, savedMedia, strategicBrief, approvals, reminders, campaign }) {
+  const eventLine = `${createdEvent.player1 || 'Player 1'} vs ${createdEvent.player2 || 'Player 2'} · ${createdEvent.division || 'Division'} · ${createdEvent.date || 'date TBC'} ${createdEvent.time || ''} · ${createdEvent.venue || 'venue TBC'}`;
+  const planApproval = approvals.find(a=>a.object_type==='campaign_plan') || {};
+  const msgs = [];
+  msgs.push({
+    text:`✅ <b>Кампания собрана</b>\n\n<b>🎾 Событие</b>\n${escapeHtml(eventLine)}\n\n<b>🧠 Стратегия</b>\n${escapeHtml(shortText(strategicBrief.strategic_thesis_ru || plan.lifecycle_strategy_ru || '', 520))}\n\n<b>📌 Что создано</b>\n• ${savedSchedule.length} публикаций в schedule\n• ${savedActions.length} задач для тебя\n• ${savedVisuals.length} visual prompts\n• ${savedImages.length} generated images\n• ${reminders.length} follow-up reminders\n\nУтверди план кнопкой или напиши правку ответом.`,
+    parseMode:'HTML',
+    replyMarkup: actionKeyboard('campaign', planApproval.approval_id || createdEvent.event_id)
+  });
+  msgs.push({ text:`📅 <b>План публикаций</b>\n\n${formatSchedule(savedSchedule)}`, parseMode:'HTML', replyMarkup: actionKeyboard('schedule', planApproval.approval_id || createdEvent.event_id) });
+  msgs.push({ text:`🎥 <b>Задачи для тебя</b>\n\n${formatActions(savedActions)}\n\nБот будет напоминать по этим задачам и спрашивать статус кнопками.`, parseMode:'HTML' });
+  msgs.push({ text:`🧵 <b>Хвост после события</b>\n\n${formatTail(plan.post_event_tail || [])}`, parseMode:'HTML' });
+  msgs.push({ text:`🎨 <b>Визуалы / медиа</b>\n\n${formatVisuals(savedVisuals, savedImages)}\n\n<b>🎬 Медиа</b>\n${formatMedia(savedMedia)}`, parseMode:'HTML' });
+  msgs.push({ text:`📝 <b>Черновики для копирования</b>\n\n<b>Telegram</b>\n<pre>${escapeHtml(shortText(drafts.telegram_draft, 1200))}</pre>\n\n<b>Instagram</b>\n<pre>${escapeHtml(shortText(drafts.instagram_caption, 1200))}</pre>\n\n<b>Hashtags</b>\n<pre>${escapeHtml((drafts.hashtags || []).slice(0,12).join(' ') || '#PhuketTennisFamily #PTF #PhuketTennis')}</pre>`, parseMode:'HTML', replyMarkup: actionKeyboard('drafts', approvals.find(a=>a.object_type==='telegram_draft')?.approval_id || createdEvent.event_id) });
+  return msgs;
+}
+function formatSchedule(rows=[]){ return rows.slice(0,18).map(s=>`• <b>${escapeHtml(s.date)} ${escapeHtml(s.time)}</b> — ${escapeHtml(s.channel)} / ${escapeHtml(s.format)}\n  ${escapeHtml(s.title)}${s.overlap_check ? `\n  <i>${escapeHtml(shortText(s.overlap_check,160))}</i>` : ''}`).join('\n') || 'План публикаций создан в таблице.'; }
+function formatActions(rows=[]){ return rows.slice(0,12).map(a=>`• <b>${escapeHtml(a.date)} ${escapeHtml(a.time)}</b> — ${escapeHtml(a.task)}`).join('\n') || 'Задачи для съёмки не сформированы.'; }
+function formatTail(rows=[]){ return rows.slice(0,8).map(x=>`• <b>${escapeHtml(x.day || '')}</b> — ${escapeHtml(x.channel || '')} / ${escapeHtml(x.format || '')}: ${escapeHtml(x.idea || '')}`).join('\n') || 'Хвост после события не сформирован.'; }
+function formatVisuals(visuals=[], images=[]){ const v=visuals.slice(0,8).map(x=>`• ${escapeHtml(x.asset_type)} — ${escapeHtml(x.size || x.channel)} (${escapeHtml(x.generation_status)})`).join('\n') || 'Visual prompts не сформированы.'; const i=images.slice(0,4).map(x=>`• ${escapeHtml(x.asset_type)} — ${x.link ? `<a href="${escapeHtml(x.link)}">Drive</a>` : escapeHtml(x.status)}`).join('\n') || 'Картинки пока не сгенерированы.'; return `${v}\n\n<b>🖼 Generated</b>\n${i}`; }
+function formatMedia(rows=[]){ return rows.slice(0,6).map(m=>`• ${escapeHtml(m.player || 'Media')} — ${escapeHtml(m.asset_type)}: ${escapeHtml(m.status)}${m.missing_asset ? ` / ${escapeHtml(m.missing_asset)}` : ''}`).join('\n') || 'Медиа пока не найдено.'; }
+function formatStrategicBriefReply(brief) { return `🧠 <b>Strategic SMM Brief создан</b>\n\n<b>Горизонт:</b> ${escapeHtml(brief.horizon || '')}\n<b>Стадия:</b> ${escapeHtml(brief.season_stage || '')}\n\n<b>Главная цель</b>\n${escapeHtml(brief.main_goal_ru || '')}\n\n<b>Тезис</b>\n${escapeHtml(brief.strategic_thesis_ru || '')}\n\n<b>Приоритеты</b>\n${(brief.content_priorities||[]).slice(0,6).map(x=>`• ${escapeHtml(x)}`).join('\n')}\n\n<b>Микс</b>\n${(brief.recommended_mix||[]).slice(0,6).map(x=>`• ${escapeHtml(x)}`).join('\n')}`; }
+function formatStorylineReply(storyline) { return `💡 <b>Storyline найден</b>\n\n<b>Тип:</b> ${escapeHtml(storyline.trigger_type)}\n<b>Канал:</b> ${escapeHtml(storyline.suggested_channel)}\n<b>Формат:</b> ${escapeHtml(storyline.suggested_format)}\n\n<b>Почему важно</b>\n${escapeHtml(storyline.why_it_matters)}\n\n<b>Telegram draft</b>\n<pre>${escapeHtml(shortText(storyline.telegram_draft,700))}</pre>`; }
+function formatTodayPack(pack) { const ready=pack.ready.map((r,i)=>`${i+1}. ${escapeHtml(r[3])} / ${escapeHtml(r[4])} — ${escapeHtml(r[6])} (${escapeHtml(r[11])})`).join('\n') || 'Нет ready-задач.'; const planned=pack.planned.map((r,i)=>`${i+1}. ${escapeHtml(r[3])} / ${escapeHtml(r[4])} — ${escapeHtml(r[6])} (${escapeHtml(r[11])})`).join('\n') || 'Нет planned-задач.'; return `📌 <b>Today’s PTF Content Pack</b>\n\n<b>Ready</b>\n${ready}\n\n<b>Planned</b>\n${planned}`; }
+function collectTelegramImages(assets = []) { return (assets || []).filter((a) => a?.generated_image?.drive?.uploaded).map((a) => ({ assetType: a.asset_type || 'visual', caption: `🖼 ${a.asset_type || 'Generated image'}`, photoUrl: a.generated_image.drive.directImageUrl || a.generated_image.drive.webContentLink || a.generated_image.drive.webViewLink || '', driveLink: a.generated_image.drive.webViewLink || '' })).filter((x) => x.photoUrl); }

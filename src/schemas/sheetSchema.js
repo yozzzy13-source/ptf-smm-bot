@@ -29,7 +29,17 @@ export const SHEETS = {
   ecosystemProducts: '27_Ecosystem Products',
   contentMixAudit: '28_Content Mix Audit',
   generatedImages: '29_Generated Images',
-  modelConfig: '30_Model Config'
+  modelConfig: '30_Model Config',
+  approvalQueue: '31_Approval Queue',
+  reminders: '32_Reminders',
+  followupLog: '33_Follow-up Log',
+  telegramMessageLinks: '34_Telegram Message Links',
+  stylePack: '35_Style Pack',
+  referenceAssets: '36_Reference Assets',
+  assetUsageHistory: '37_Asset Usage History',
+  campaignState: '38_Campaign State',
+  draftVersions: '39_Draft Versions',
+  userDecisions: '40_User Decisions'
 };
 
 export const HEADERS = {
@@ -62,5 +72,15 @@ export const HEADERS = {
   [SHEETS.ecosystemProducts]: ['Product ID','Product Name','Category','What It Does','Audience','Content Angles','Priority','Status','Launch / Promo Window','Notes','Last Updated'],
   [SHEETS.contentMixAudit]: ['Audit ID','Created At','Period','Players %','Matches %','Community %','Sponsors %','Products %','Education %','Recap %','Risk','Recommendation','Raw JSON'],
   [SHEETS.generatedImages]: ['Image ID','Visual ID','Related Event ID','Asset Type','Prompt','Model','Size','Quality','Format','Drive File ID','Drive Link','Status','Error','Created At'],
-  [SHEETS.modelConfig]: ['Role','Env Var','Recommended Model','Fallback Model','Purpose','Status','Notes']
+  [SHEETS.modelConfig]: ['Role','Env Var','Recommended Model','Fallback Model','Purpose','Status','Notes'],
+  [SHEETS.approvalQueue]: ['Approval ID','Created At','Related Event ID','Object Type','Object ID','Title','Summary','Status','Priority','Telegram Chat ID','Telegram Message ID','Owner','Notes','Last Updated'],
+  [SHEETS.reminders]: ['Reminder ID','Created At','Due Date','Due Time','Timezone','Reminder Type','Related Event ID','Related Object Type','Related Object ID','Title','Message','Status','Repeat Count','Last Sent At','Next Retry At','Telegram Chat ID','Telegram Message ID','Notes'],
+  [SHEETS.followupLog]: ['Follow-up ID','Timestamp','Reminder ID','Related Object ID','Action','Old Status','New Status','Telegram Chat ID','Telegram Message ID','Notes','Raw JSON'],
+  [SHEETS.telegramMessageLinks]: ['Link ID','Timestamp','Telegram Chat ID','Telegram Message ID','Direction','Related Type','Related ID','Context','Status','Notes'],
+  [SHEETS.stylePack]: ['Style ID','Created At','Style Name','Style Type','Prompt Template','Positive Rules','Negative Rules','Reference Asset IDs','Status','Priority','Notes','Last Updated'],
+  [SHEETS.referenceAssets]: ['Reference ID','Created At','Source','Telegram Chat ID','Telegram Message ID','Telegram File ID','Drive Link','Reference Type','Related Player','Related Event ID','Status','Notes','Last Updated'],
+  [SHEETS.assetUsageHistory]: ['Usage ID','Created At','Asset ID','Reference ID','Related Event ID','Channel','Format','Used In Content ID','Published Date','Reuse Cooldown Days','Reuse Allowed After','Status','Notes'],
+  [SHEETS.campaignState]: ['Campaign ID','Created At','Related Event ID','Campaign Name','Stage','Status','Approved Schedule','Approved Visuals','Approved Drafts','Pending Actions','Last Interaction At','Notes','Raw JSON'],
+  [SHEETS.draftVersions]: ['Draft ID','Created At','Related Event ID','Related Content ID','Draft Type','Version','Text','Status','Feedback','Telegram Message ID','Notes','Last Updated'],
+  [SHEETS.userDecisions]: ['Decision ID','Timestamp','Telegram Chat ID','Telegram Message ID','Related Type','Related ID','Decision','Comment','Status Before','Status After','Raw Text','Raw JSON']
 };
