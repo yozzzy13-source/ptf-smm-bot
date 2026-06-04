@@ -1,6 +1,6 @@
 {
   "name": "ptf-smm-bot",
-  "version": "0.3.0",
+  "version": "0.3.4",
   "description": "Phuket Tennis Family AI SMM OS: strategic SMM brain, event lifecycle planning, image generation, media planning, match-log analysis, and Google Sheets auto-migration.",
   "type": "module",
   "main": "src/index.js",

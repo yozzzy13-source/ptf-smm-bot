@@ -11,11 +11,12 @@ import { generateTodayPackSummary } from './agents/todayPackAgent.js';
 import { saveSystemLog, syncSourceRegistryDefaults, seedStrategicDefaults } from './services/sheetsStorage.js';
 import { ensureSheetHeaders } from './services/googleSheetsService.js';
 import { HEADERS } from './schemas/sheetSchema.js';
+import { extractErrorDetails, limitText } from './utils/errorUtils.js';
 
 const app = express();
 app.use(express.json({ limit: '20mb' }));
 app.get('/', (_, res) => res.status(200).send('PTF SMM Bot is running'));
-app.get('/health', (_, res) => res.status(200).json({ ok:true, service:'ptf-smm-bot', version:'0.3.2', env:config.nodeEnv, autoSetupSheets:config.autoSetupSheets, imageGenerationEnabled:config.enableImageGeneration, imageModel:config.openaiImageModel, strategicModel:config.openaiStrategicModel, sendGeneratedImagesToTelegram: config.sendGeneratedImagesToTelegram }));
+app.get('/health', (_, res) => res.status(200).json({ ok:true, service:'ptf-smm-bot', version:'0.3.4', env:config.nodeEnv, autoSetupSheets:config.autoSetupSheets, imageGenerationEnabled:config.enableImageGeneration, imageModel:config.openaiImageModel, strategicModel:config.openaiStrategicModel, sendGeneratedImagesToTelegram: config.sendGeneratedImagesToTelegram }));
 
 app.post('/telegram/webhook/:secret', async (req, res) => {
   const receivedSecret = req.params.secret;
