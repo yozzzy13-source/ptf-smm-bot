@@ -2,7 +2,7 @@ import { config } from '../config.js';
 import { generateTodayPackSummary } from '../agents/todayPackAgent.js';
 import { ensureSheetHeaders } from './googleSheetsService.js';
 import { HEADERS } from '../schemas/sheetSchema.js';
-import { getRecentEvents, getPublicationSchedule, syncSourceRegistryDefaults, seedStrategicDefaults } from './sheetsStorage.js';
+import { getRecentEvents, getPublicationSchedule, syncSourceRegistryDefaults, seedStrategicDefaults, cleanupTestCampaigns, getActiveCampaign } from './sheetsStorage.js';
 import { escapeHtml } from '../utils/html.js';
 
 function normalizeCommand(text = '') {
@@ -50,6 +50,16 @@ export async function handleAdminCommand({ text, runLogger }) {
     return { type: 'command', parseMode: 'HTML', textRu: '✅ <b>Setup выполнен</b>\n\nПроверил/создал структуру Google Sheets, source registry и strategic defaults.' };
   }
 
+  if (command === '/active_campaign') {
+    const active = await getActiveCampaign();
+    return { type: 'command', parseMode: 'HTML', textRu: activeCampaignReply(active) };
+  }
+
+  if (command === '/cleanup_tests') {
+    const result = await cleanupTestCampaigns();
+    return { type: 'command', parseMode: 'HTML', textRu: cleanupReply(result) };
+  }
+
   if (['/clear_history', '/reset_context'].includes(command)) {
     return { type: 'command', parseMode: 'HTML', textRu: resetContextReply() };
   }
@@ -94,6 +104,26 @@ function upcomingReply(events = []) {
 function scheduleReply(rows = []) {
   const lines = rows.slice(-12).map((r, i) => `${i + 1}. ${escapeHtml(r.date || '')} ${escapeHtml(r.time || '')} — ${escapeHtml(r.channel || '')} / ${escapeHtml(r.format || '')}: ${escapeHtml(r.title || '')}`).join('\n') || 'План публикаций пуст.';
   return `📅 <b>Publication Schedule</b>\n\n${lines}`;
+}
+
+
+function activeCampaignReply(active) {
+  if (!active) return '⚠️ <b>Активная кампания не найдена</b>\n\nСоздай новую кампанию или проверь вкладку <code>02_Events Matches</code>.';
+  return `🎾 <b>Активная кампания</b>\n\n<b>Матч:</b> ${escapeHtml(active.player1 || '')} vs ${escapeHtml(active.player2 || '')}\n<b>Дата:</b> ${escapeHtml(formatShortDate(active.date, active.time))}\n<b>Место:</b> ${escapeHtml(active.venue || '')}\n<b>Дивизион:</b> ${escapeHtml(active.division || '')}\n<b>Статус:</b> ${escapeHtml(active.status || '')}\n<b>Event ID:</b> <code>${escapeHtml(active.event_id || '')}</code>`;
+}
+
+function cleanupReply(result) {
+  if (!result?.ok) return `⚠️ <b>Cleanup не выполнен</b>\n\n${escapeHtml(result?.message || 'Неизвестная ошибка')}`;
+  const active = result.active || {};
+  return `🧹 <b>Тестовые кампании заархивированы</b>\n\nОставил активной:\n<b>${escapeHtml(active.player1 || '')} vs ${escapeHtml(active.player2 || '')}</b>\n${escapeHtml(formatShortDate(active.date, active.time))} · ${escapeHtml(active.venue || '')}\n\nОбновлено строк: <b>${String(result.changed || 0)}</b>\n\nТеперь бот должен ориентироваться на эту кампанию, когда ты пишешь “текущая кампания” или “по этому матчу”.`;
+}
+
+function formatShortDate(date = '', time = '') {
+  const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  const m = String(date || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const tm = String(time || '').match(/(\d{1,2}:\d{2})/)?.[1] || '';
+  if (!m) return [date, tm].filter(Boolean).join(' · ');
+  return `${Number(m[3])} ${months[Number(m[2]) - 1]}${tm ? ` · ${tm}` : ''}`;
 }
 
 function resetContextReply() {

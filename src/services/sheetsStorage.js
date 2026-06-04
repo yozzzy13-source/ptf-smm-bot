@@ -190,3 +190,52 @@ export async function updateApprovalStatus(approvalOrObjectId, status, notes = '
   await updateRange(SHEETS.approvalQueue, `H${rowNumber}:N${rowNumber}`, [[status, rows[idx][8] || '', rows[idx][9] || '', rows[idx][10] || '', rows[idx][11] || '', notes || rows[idx][12] || '', nowIso()]]);
   return true;
 }
+
+export async function getActiveCampaign() {
+  const events = await readRange(SHEETS.eventsMatches, 'A2:R700');
+  const activeEvents = events
+    .map((r, idx) => ({ row_number: idx + 2, event_id:r[0], type:r[1], date:r[2], time:r[3], venue:r[4], division:r[5], player1:r[6], player2:r[7], status:r[8], story_angle:r[11] }))
+    .filter((e) => e.event_id && !String(e.status || '').toLowerCase().includes('archived'));
+  const robinChris = activeEvents.filter((e) => /robin/i.test(`${e.player1} ${e.player2}`) && /chris/i.test(`${e.player1} ${e.player2}`));
+  const picked = (robinChris.length ? robinChris : activeEvents).slice(-1)[0] || null;
+  if (!picked) return null;
+  return picked;
+}
+
+export async function cleanupTestCampaigns() {
+  const active = await getActiveCampaign();
+  if (!active?.event_id) return { ok:false, message:'Не нашёл активную кампанию для сохранения.' };
+  const keepId = active.event_id;
+  const results = [];
+  results.push(await archiveRowsExcept(SHEETS.eventsMatches, 'A2:R700', 0, 8, keepId, 'Test Archived'));
+  results.push(await archiveRowsExcept(SHEETS.contentCalendar, 'A2:T700', 9, 11, keepId, 'Test Archived'));
+  results.push(await archiveRowsExcept(SHEETS.publicationSchedule, 'A2:N700', 1, 9, keepId, 'Test Archived'));
+  results.push(await archiveRowsExcept(SHEETS.userActionTasks, 'A2:L700', 1, 8, keepId, 'Test Archived'));
+  results.push(await archiveRowsExcept(SHEETS.mediaSuggestions, 'A2:L700', 1, 7, keepId, 'Test Archived'));
+  results.push(await archiveRowsExcept(SHEETS.approvalQueue, 'A2:N700', 2, 7, keepId, 'Test Archived'));
+  results.push(await archiveRowsExcept(SHEETS.reminders, 'A2:R700', 6, 11, keepId, 'Skipped Test Archive'));
+  results.push(await archiveRowsExcept(SHEETS.campaignState, 'A2:M700', 2, 5, keepId, 'Test Archived'));
+  results.push(await archiveRowsExcept(SHEETS.draftVersions, 'A2:L700', 2, 7, keepId, 'Test Archived'));
+  const changed = results.reduce((sum, r) => sum + (r.changed || 0), 0);
+  return { ok:true, keep_event_id: keepId, active, changed, details: results };
+}
+
+async function archiveRowsExcept(sheetName, range, eventColIdx, statusColIdx, keepId, archivedStatus) {
+  let rows = [];
+  try { rows = await readRange(sheetName, range); } catch (err) { return { sheetName, changed:0, error: err.message }; }
+  let changed = 0;
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
+    const eventId = row[eventColIdx];
+    if (!eventId || eventId === keepId) continue;
+    const current = row[statusColIdx] || '';
+    if (String(current).toLowerCase().includes('archived') || String(current).toLowerCase().includes('skipped')) continue;
+    const rowNumber = i + 2;
+    const col = columnLetterLocal(statusColIdx + 1);
+    await updateRange(sheetName, `${col}${rowNumber}:${col}${rowNumber}`, [[archivedStatus]]);
+    changed += 1;
+  }
+  return { sheetName, changed };
+}
+
+function columnLetterLocal(n) { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - m - 1) / 26); } return s; }

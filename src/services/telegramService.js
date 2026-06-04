@@ -18,12 +18,34 @@ async function postTelegram(method, payload) {
   }
 }
 
+
 export async function sendMessage(chatId, text, options = {}) {
   if (!chatId) return null;
+  const original = String(text || '');
   const htmlMode = options.parse_mode === 'HTML';
+  const hardLimit = htmlMode ? 3300 : 3800;
+
+  // If the block is too long, do not silently cut it. Split into readable parts.
+  if (original.length > hardLimit) {
+    const safeText = htmlMode ? stripHtml(original) : original;
+    const chunks = splitLongText(safeText, 3600);
+    let last = null;
+    for (let i = 0; i < chunks.length; i += 1) {
+      const prefix = chunks.length > 1 ? `Часть ${i + 1}/${chunks.length}\n\n` : '';
+      const chunkPayload = {
+        chat_id: chatId,
+        text: prefix + chunks[i],
+        disable_web_page_preview: true,
+        ...withoutFormatting(options)
+      };
+      last = await postTelegram('/sendMessage', chunkPayload);
+    }
+    return last;
+  }
+
   const payload = {
     chat_id: chatId,
-    text: limitText(text, htmlMode ? 3400 : 3900),
+    text: original,
     disable_web_page_preview: true,
     ...options
   };
@@ -31,18 +53,39 @@ export async function sendMessage(chatId, text, options = {}) {
   try {
     return await postTelegram('/sendMessage', payload);
   } catch (err) {
-    // Telegram is strict with HTML entities. If formatted output fails, retry as plain text
-    // so the whole workflow does not look broken to the user.
     if (htmlMode) {
       const plainPayload = {
         chat_id: chatId,
-        text: limitText(stripHtml(text), 3900),
-        disable_web_page_preview: true
+        text: limitText(stripHtml(original), 3900),
+        disable_web_page_preview: true,
+        ...withoutFormatting(options)
       };
       return await postTelegram('/sendMessage', plainPayload);
     }
     throw err;
   }
+}
+
+function withoutFormatting(options = {}) {
+  const copy = { ...options };
+  delete copy.parse_mode;
+  return copy;
+}
+
+function splitLongText(text, limit = 3600) {
+  const lines = String(text || '').split('\n');
+  const chunks = [];
+  let current = '';
+  for (const line of lines) {
+    if ((current + '\n' + line).length > limit && current.trim()) {
+      chunks.push(current.trim());
+      current = line;
+    } else {
+      current = current ? `${current}\n${line}` : line;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.length ? chunks : [''];
 }
 
 export async function sendPhoto(chatId, photo, options = {}) {
