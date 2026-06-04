@@ -2,7 +2,8 @@ import { config } from '../config.js';
 import { listFilesInFolder } from './googleDriveService.js';
 import { appendRows, readRange } from './googleSheetsService.js';
 import { SHEETS } from '../schemas/sheetSchema.js';
-import { nowIso, shortId } from '../utils/idUtils.js';
+import { shortId } from '../utils/idUtils.js';
+import { nowIso } from '../utils/dateUtils.js';
 import { logger } from './logger.js';
 
 export async function scanMediaOs({ maxFiles = config.mediaScanMaxFiles } = {}) {
