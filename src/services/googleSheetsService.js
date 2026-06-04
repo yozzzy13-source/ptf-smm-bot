@@ -69,6 +69,21 @@ export async function updateRange(sheetName, a1Range, values, spreadsheetId = co
   return res.data;
 }
 
+export async function updateRangesBatch(updates, spreadsheetId = config.spreadsheetId) {
+  if (!updates?.length) return { totalUpdatedCells: 0 };
+  const sheets = await getSheetsClient(spreadsheetId);
+  const data = updates.map((u) => ({
+    range: `'${u.sheetName}'!${u.a1Range}`,
+    values: u.values
+  }));
+  const res = await withRetry(() => sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: { valueInputOption: 'USER_ENTERED', data }
+  }), `batchUpdateValues:${updates.length}`);
+  logger.debug({ updates: updates.length, totalUpdatedCells: res.data.totalUpdatedCells }, 'Batch updated ranges');
+  return res.data;
+}
+
 export async function readRange(sheetName, a1Range = 'A:Z', spreadsheetId = config.spreadsheetId) {
   const sheets = await getSheetsClient(spreadsheetId);
   const range = `'${sheetName}'!${a1Range}`;

@@ -1,5 +1,5 @@
 import { SHEETS } from '../schemas/sheetSchema.js';
-import { appendRow, appendRows, readRange, updateRange } from './googleSheetsService.js';
+import { appendRow, appendRows, readRange, updateRange, updateRangesBatch } from './googleSheetsService.js';
 import { logger } from './logger.js';
 import { shortId } from '../utils/idUtils.js';
 import { nowIso, weekKey } from '../utils/dateUtils.js';
@@ -206,23 +206,38 @@ export async function cleanupTestCampaigns() {
   const active = await getActiveCampaign();
   if (!active?.event_id) return { ok:false, message:'Не нашёл активную кампанию для сохранения.' };
   const keepId = active.event_id;
-  const results = [];
-  results.push(await archiveRowsExcept(SHEETS.eventsMatches, 'A2:R700', 0, 8, keepId, 'Test Archived'));
-  results.push(await archiveRowsExcept(SHEETS.contentCalendar, 'A2:T700', 9, 11, keepId, 'Test Archived'));
-  results.push(await archiveRowsExcept(SHEETS.publicationSchedule, 'A2:N700', 1, 9, keepId, 'Test Archived'));
-  results.push(await archiveRowsExcept(SHEETS.userActionTasks, 'A2:L700', 1, 8, keepId, 'Test Archived'));
-  results.push(await archiveRowsExcept(SHEETS.mediaSuggestions, 'A2:L700', 1, 7, keepId, 'Test Archived'));
-  results.push(await archiveRowsExcept(SHEETS.approvalQueue, 'A2:N700', 2, 7, keepId, 'Test Archived'));
-  results.push(await archiveRowsExcept(SHEETS.reminders, 'A2:R700', 6, 11, keepId, 'Skipped Test Archive'));
-  results.push(await archiveRowsExcept(SHEETS.campaignState, 'A2:M700', 2, 5, keepId, 'Test Archived'));
-  results.push(await archiveRowsExcept(SHEETS.draftVersions, 'A2:L700', 2, 7, keepId, 'Test Archived'));
-  const changed = results.reduce((sum, r) => sum + (r.changed || 0), 0);
-  return { ok:true, keep_event_id: keepId, active, changed, details: results };
+  const targets = [
+    [SHEETS.eventsMatches, 'A2:R700', 0, 8, 'Test Archived'],
+    [SHEETS.contentCalendar, 'A2:T700', 9, 11, 'Test Archived'],
+    [SHEETS.publicationSchedule, 'A2:N700', 1, 9, 'Test Archived'],
+    [SHEETS.userActionTasks, 'A2:L700', 1, 8, 'Test Archived'],
+    [SHEETS.mediaSuggestions, 'A2:L700', 1, 7, 'Test Archived'],
+    [SHEETS.approvalQueue, 'A2:N700', 2, 7, 'Test Archived'],
+    [SHEETS.reminders, 'A2:R700', 6, 11, 'Skipped Test Archive'],
+    [SHEETS.campaignState, 'A2:M700', 2, 5, 'Test Archived'],
+    [SHEETS.draftVersions, 'A2:L700', 2, 7, 'Test Archived']
+  ];
+
+  const allUpdates = [];
+  const details = [];
+  for (const [sheetName, range, eventColIdx, statusColIdx, archivedStatus] of targets) {
+    const result = await collectArchiveUpdates(sheetName, range, eventColIdx, statusColIdx, keepId, archivedStatus);
+    details.push({ sheetName, changed: result.changed, error: result.error || '' });
+    allUpdates.push(...result.updates);
+  }
+
+  if (allUpdates.length) {
+    await updateRangesBatch(allUpdates);
+  }
+
+  const changed = details.reduce((sum, r) => sum + (r.changed || 0), 0);
+  return { ok:true, keep_event_id: keepId, active, changed, details, batched:true, write_requests: allUpdates.length ? 1 : 0 };
 }
 
-async function archiveRowsExcept(sheetName, range, eventColIdx, statusColIdx, keepId, archivedStatus) {
+async function collectArchiveUpdates(sheetName, range, eventColIdx, statusColIdx, keepId, archivedStatus) {
   let rows = [];
-  try { rows = await readRange(sheetName, range); } catch (err) { return { sheetName, changed:0, error: err.message }; }
+  try { rows = await readRange(sheetName, range); } catch (err) { return { sheetName, changed:0, updates:[], error: err.message }; }
+  const updates = [];
   let changed = 0;
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
@@ -232,10 +247,16 @@ async function archiveRowsExcept(sheetName, range, eventColIdx, statusColIdx, ke
     if (String(current).toLowerCase().includes('archived') || String(current).toLowerCase().includes('skipped')) continue;
     const rowNumber = i + 2;
     const col = columnLetterLocal(statusColIdx + 1);
-    await updateRange(sheetName, `${col}${rowNumber}:${col}${rowNumber}`, [[archivedStatus]]);
+    updates.push({ sheetName, a1Range: `${col}${rowNumber}:${col}${rowNumber}`, values: [[archivedStatus]] });
     changed += 1;
   }
-  return { sheetName, changed };
+  return { sheetName, changed, updates };
+}
+
+async function archiveRowsExcept(sheetName, range, eventColIdx, statusColIdx, keepId, archivedStatus) {
+  const collected = await collectArchiveUpdates(sheetName, range, eventColIdx, statusColIdx, keepId, archivedStatus);
+  if (collected.updates.length) await updateRangesBatch(collected.updates);
+  return { sheetName, changed: collected.changed, error: collected.error };
 }
 
 function columnLetterLocal(n) { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - m - 1) / 26); } return s; }
