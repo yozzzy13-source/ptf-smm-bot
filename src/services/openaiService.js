@@ -72,6 +72,27 @@ export async function callJsonAgent({ system, user, schemaName, schema, temperat
   }
 }
 
+function attachTelegramBuffer(payload, buffer, filename, mimeType) {
+  if (!buffer) return payload;
+  Object.defineProperty(payload, 'telegramBuffer', {
+    value: { buffer, filename, mimeType },
+    enumerable: false,
+    configurable: false
+  });
+  return payload;
+}
+
+async function maybeUploadGeneratedImage({ buffer, filename, mimeType, runLogger }) {
+  if (!config.saveGeneratedImagesToDrive) return { uploaded: false, reason: 'SAVE_GENERATED_IMAGES_TO_DRIVE=false' };
+  try {
+    return await uploadBufferToDrive({ buffer, filename, mimeType });
+  } catch (err) {
+    const d = extractErrorDetails(err);
+    runLogger.warn({ err: d.short, raw: d.raw }, 'Generated image Drive upload failed; continuing with Telegram-only image');
+    return { uploaded: false, reason: d.short };
+  }
+}
+
 export async function generateImageFromPrompt({ prompt, size = config.openaiImageSize, quality = config.openaiImageQuality, format = config.openaiImageFormat, model = config.openaiImageModel, filename = 'ptf-generated-image.png', runLogger = logger }) {
   if (!config.enableImageGeneration) return { enabled: false, note: 'ENABLE_IMAGE_GENERATION=false', prompt, size, quality, model };
 
@@ -84,9 +105,10 @@ export async function generateImageFromPrompt({ prompt, size = config.openaiImag
     if (!b64) return { enabled: true, model, size, quality, format, revised_prompt: item.revised_prompt || '', url: item.url || '', drive: null, note: 'No b64_json in image response' };
 
     const buffer = Buffer.from(b64, 'base64');
-    const drive = await uploadBufferToDrive({ buffer, filename, mimeType: format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png' });
-    runLogger.info({ model, size, quality, drive }, 'OpenAI image generation completed');
-    return { enabled: true, model, size, quality, format, revised_prompt: item.revised_prompt || '', drive, url: drive?.webViewLink || item.url || '' };
+    const mimeType = format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
+    const drive = await maybeUploadGeneratedImage({ buffer, filename, mimeType, runLogger });
+    runLogger.info({ model, size, quality, driveUploaded: !!drive?.uploaded }, 'OpenAI image generation completed');
+    return attachTelegramBuffer({ enabled: true, model, size, quality, format, revised_prompt: item.revised_prompt || '', drive, url: drive?.webViewLink || item.url || '', mode: 'prompt_only' }, buffer, filename, mimeType);
   } catch (err) {
     throw toAgentError(err, { model, image: true, size, quality, format });
   }
@@ -106,10 +128,12 @@ export async function generateImageWithReferenceBuffers({ prompt, referenceBuffe
       const b64 = item.b64_json;
       if (b64) {
         const buffer = Buffer.from(b64, 'base64');
-        const drive = await uploadBufferToDrive({ buffer, filename, mimeType: format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png' });
-        runLogger.info({ model, size, quality, drive, references: referenceBuffers.length }, 'OpenAI image edit with references completed');
-        return { enabled: true, model, size, quality, format, revised_prompt: item.revised_prompt || '', drive, url: drive?.webViewLink || item.url || '', used_references: referenceBuffers.length, mode: 'edit_with_references' };
+        const mimeType = format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
+        const drive = await maybeUploadGeneratedImage({ buffer, filename, mimeType, runLogger });
+        runLogger.info({ model, size, quality, driveUploaded: !!drive?.uploaded, references: referenceBuffers.length }, 'OpenAI image edit with references completed');
+        return attachTelegramBuffer({ enabled: true, model, size, quality, format, revised_prompt: item.revised_prompt || '', drive, url: drive?.webViewLink || item.url || '', used_references: referenceBuffers.length, mode: 'edit_with_references' }, buffer, filename, mimeType);
       }
+      runLogger.warn({ model, references: referenceBuffers.length }, 'Image edit response had no b64_json; falling back to prompt-only generation');
     } catch (err) {
       const d = extractErrorDetails(err);
       runLogger.warn({ err: d.short, raw: d.raw, model, references: referenceBuffers.length }, 'Image edit with references failed; falling back to prompt-only generation');

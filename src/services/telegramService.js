@@ -103,6 +103,48 @@ export async function sendPhoto(chatId, photo, options = {}) {
 }
 
 
+export async function sendPhotoBuffer(chatId, photoBuffer, options = {}) {
+  if (!chatId || !photoBuffer) return null;
+  const buffer = Buffer.isBuffer(photoBuffer.buffer) ? photoBuffer.buffer : Buffer.from(photoBuffer.buffer || photoBuffer, 'base64');
+  const filename = photoBuffer.filename || 'generated.png';
+  const mimeType = photoBuffer.mimeType || 'image/png';
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  form.append('photo', new Blob([buffer], { type: mimeType }), filename);
+  for (const [key, value] of Object.entries(options || {})) {
+    if (value === undefined || value === null) continue;
+    if (typeof value === 'object') form.append(key, JSON.stringify(value));
+    else form.append(key, String(value));
+  }
+  const url = `https://api.telegram.org/bot${config.telegramBotToken}/sendPhoto`;
+  let response = await fetch(url, { method: 'POST', body: form });
+  let data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) {
+    if (options.parse_mode === 'HTML') {
+      const fallbackOptions = { ...options, caption: stripHtml(options.caption || '') };
+      delete fallbackOptions.parse_mode;
+      const fallbackForm = new FormData();
+      fallbackForm.append('chat_id', String(chatId));
+      fallbackForm.append('photo', new Blob([buffer], { type: mimeType }), filename);
+      for (const [key, value] of Object.entries(fallbackOptions || {})) {
+        if (value === undefined || value === null) continue;
+        if (typeof value === 'object') fallbackForm.append(key, JSON.stringify(value));
+        else fallbackForm.append(key, String(value));
+      }
+      response = await fetch(url, { method: 'POST', body: fallbackForm });
+      data = await response.json().catch(() => ({}));
+    }
+  }
+  if (!response.ok || data.ok === false) {
+    const message = data?.description || `HTTP ${response.status}`;
+    const e = new Error(`Telegram /sendPhoto buffer failed — ${message}`);
+    e.details = data;
+    throw e;
+  }
+  return { data };
+}
+
+
 export async function answerCallbackQuery(callbackQueryId, text = '', options = {}) {
   if (!callbackQueryId) return null;
   return postTelegram('/answerCallbackQuery', { callback_query_id: callbackQueryId, text, show_alert: false, ...options });

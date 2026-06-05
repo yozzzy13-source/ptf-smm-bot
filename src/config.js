@@ -59,6 +59,7 @@ export const config = {
 
   dryRun: optional('DRY_RUN', 'false') === 'true',
   enableAutoTelegramPublish: optional('ENABLE_AUTO_TELEGRAM_PUBLISH', 'false') === 'true',
+  saveGeneratedImagesToDrive: optional('SAVE_GENERATED_IMAGES_TO_DRIVE', 'false') === 'true',
   sendGeneratedImagesToTelegram: optional('SEND_GENERATED_IMAGES_TO_TELEGRAM', 'true') === 'true',
   telegramMaxMediaSend: Number(optional('TELEGRAM_MAX_MEDIA_SEND', '2')),
   enableTelegramRestartCommand: optional('ENABLE_TELEGRAM_RESTART_COMMAND', 'false') === 'true',

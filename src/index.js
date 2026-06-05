@@ -1,7 +1,7 @@
 import express from 'express';
 import { config } from './config.js';
 import { logger, makeRunLogger } from './services/logger.js';
-import { extractMessage, extractTextFromMessage, sendMessage, sendPhoto, answerCallbackQuery } from './services/telegramService.js';
+import { extractMessage, extractTextFromMessage, sendMessage, sendPhoto, sendPhotoBuffer, answerCallbackQuery } from './services/telegramService.js';
 import { isDuplicate, markProcessed } from './services/dedupService.js';
 import { makeDedupKey, shortId } from './utils/idUtils.js';
 import { isAdminUser, normalizeText } from './utils/validation.js';
