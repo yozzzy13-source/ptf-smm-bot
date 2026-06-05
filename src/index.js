@@ -64,7 +64,7 @@ app.post('/telegram/webhook/:secret', async (req, res) => {
       return;
     }
 
-    await sendMessage(chatId, 'Принял. Думаю как SMM-директор и собираю пакет…');
+    await sendMessage(chatId, 'Принял. Разбираю запрос и выбираю правильный режим…');
     const result = await processUserText({ text, messageMeta:{ runId, telegramSource:`chat:${chatId}/message:${message.message_id}`, chatId, messageId:message.message_id }, runLogger });
 
     if (config.sendMultiMessageReplies && Array.isArray(result.messages) && result.messages.length) {
