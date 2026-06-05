@@ -79,13 +79,25 @@ app.post('/telegram/webhook/:secret', async (req, res) => {
 
     if (config.sendGeneratedImagesToTelegram && Array.isArray(result.telegramImages) && result.telegramImages.length) {
       const imagesToSend = result.telegramImages.slice(0, config.telegramMaxMediaSend);
+      const deliveryErrors = [];
       for (const img of imagesToSend) {
         try {
           const caption = img.driveLink ? `${img.caption}\n<a href="${img.driveLink}">Open in Drive</a>` : img.caption;
-          await sendPhoto(chatId, img.photoUrl, { caption, parse_mode: 'HTML' });
+          if (img.photoBuffer) {
+            await sendPhotoBuffer(chatId, img.photoBuffer, { caption, parse_mode: 'HTML' });
+          } else if (img.photoUrl) {
+            await sendPhoto(chatId, img.photoUrl, { caption, parse_mode: 'HTML' });
+          } else {
+            throw new Error('No photoBuffer or photoUrl found for generated image');
+          }
         } catch (photoErr) {
-          runLogger.warn({ err: photoErr.message, img }, 'Failed to send generated image to Telegram');
+          const reason = photoErr?.details?.description || photoErr?.details?.short || photoErr.message || 'Unknown Telegram image delivery error';
+          deliveryErrors.push(`• ${img.caption || img.assetType || 'image'} — ${reason}`);
+          runLogger.warn({ err: photoErr.message, details: photoErr.details, img: { assetType: img.assetType, hasBuffer: !!img.photoBuffer, hasUrl: !!img.photoUrl } }, 'Failed to send generated image to Telegram');
         }
+      }
+      if (deliveryErrors.length) {
+        await sendMessage(chatId, `⚠️ Картинка была сгенерирована, но не дошла в Telegram.\n\n${deliveryErrors.slice(0, 4).join('\n')}\n\nЭто уже ошибка доставки, не генерации. Пришли этот блок, если нужно чинить дальше.`);
       }
     }
     await markProcessed(dedupKey,'telegram',result.type);
