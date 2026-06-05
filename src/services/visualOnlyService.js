@@ -17,7 +17,9 @@ export function isVisualOnlyRequest(text = '') {
 
 export function isVisualRevisionRequest(text = '') {
   const t = String(text || '').toLowerCase();
-  return /(перв|втор|вариант\s*[12]|оба|обе|обе версии|доработ|сделай.*темн|крупн|увелич|уменьш|перегенер|оставь|лучше)/i.test(t) && /(вариант|постер|картин|визуал|фон|игрок|композици)/i.test(t);
+  const editWords = /(перв|втор|вариант\s*[12]|оба|обе|обе версии|доработ|измени|исправ|сохрани|не\s+изменяй|не\s+меняй|ближе.*оригинал|оригинал|сделай.*темн|сделай.*светл|крупн|увелич|уменьш|перегенер|оставь|лучше|фон|композици|шрифт|цвет|логотип|лого|фото.*спортсмен|спортсмен.*фото)/i;
+  const visualWords = /(вариант|постер|картин|визуал|фон|игрок|спортсмен|фото|логотип|лого|композици|оригинал|лица|лицо|цвет|шрифт)/i;
+  return editWords.test(t) && visualWords.test(t);
 }
 
 export async function processVisualOnlyRequest({ text, messageMeta, runLogger, decision = null }) {
@@ -26,7 +28,7 @@ export async function processVisualOnlyRequest({ text, messageMeta, runLogger, d
     return { type: 'visual_only', parseMode: 'HTML', textRu: '⚠️ <b>Не нашёл кампанию</b>\n\nСначала выбери кампанию или создай событие.' };
   }
 
-  const isRevision = isVisualRevisionRequest(text) && !/сгенер.*\d|создай.*\d|главн.*постер/i.test(text);
+  const isRevision = (decision?.intent === 'EDIT_VISUAL' || isVisualRevisionRequest(text)) && !/сгенер.*\d|создай.*\d|главн.*постер/i.test(text);
   const lastJob = await getLastVisualJob(event.event_id);
   const referenceAssets = await getRecentReferenceAssets(30);
   const refsToUse = pickReferences(referenceAssets, event.event_id);
@@ -62,7 +64,10 @@ export async function processVisualOnlyRequest({ text, messageMeta, runLogger, d
   for (let i = 1; i <= variantCount; i += 1) {
     const visualId = shortId('VIS');
     const filename = `${event.date || 'ptf'}_${event.division || 'event'}_${event.player1 || 'player1'}_vs_${event.player2 || 'player2'}_${detectVisualType(text).replace(/\s+/g,'_')}_option_${i}.${config.openaiImageFormat || 'png'}`.replace(/[^a-zA-Z0-9_.-]+/g, '_');
-    const fullPrompt = `${basePrompt}\n\nOption ${i} of ${variantCount}: make this option meaningfully distinct while keeping the approved PTF identity. Do not create or modify any SMM campaign, schedule, or captions.`;
+    const revisionInstruction = isRevision
+      ? `\n\nREVISION MODE: this is feedback for the latest generated poster set. Do not show a reference list. Do not create a new campaign. Preserve the best existing composition when possible. Apply the user's feedback precisely. If the user says preserve original logo or player photos, keep them as close to the provided references as possible.`
+      : '';
+    const fullPrompt = `${basePrompt}${revisionInstruction}\n\nOption ${i} of ${variantCount}: make this option meaningfully distinct while keeping the approved PTF identity. Do not create or modify any SMM campaign, schedule, or captions.`;
     let generated;
     try {
       generated = await generateImageWithReferenceBuffers({ prompt: fullPrompt, referenceBuffers, size: config.openaiImageSize, filename, runLogger });
@@ -124,7 +129,7 @@ function formatVisualOnlyReply({ event, refsToUse, referenceBuffers, savedImages
   }).join('\n') || 'Картинки не сгенерированы. Проверь Railway logs / OpenAI image model.';
   const failed = (assets || []).filter((a)=>a.generated_image?.error).map((a)=>a.generated_image.error).filter(Boolean);
   const errorBlock = failed.length ? `\n\n<b>Ошибки</b>\n${failed.slice(0,3).map((e)=>`• ${escapeHtml(e)}`).join('\n')}` : '';
-  return `🎨 <b>${isRevision ? 'Доработка визуала' : 'Visual-only генерация'}</b>\n\n<b>Что важно</b>\n• Кампанию не пересоздавал\n• Schedule не менял\n• Новые публикации не создавал\n\n<b>Кампания</b>\n${escapeHtml(event.player1 || '')} vs ${escapeHtml(event.player2 || '')} · ${escapeHtml(event.division || '')} · 6 июня · 17:00\n\n<b>Референсы</b>\n• найдено — ${refsToUse.length}\n• загружено для генерации — ${referenceBuffers.length}\n\n<b>Visual Job</b>\n<code>${escapeHtml(visualJob.visual_job_id)}</code>\n\n<b>Результат</b>\n${imgLines}${errorBlock}\n\n<b>Следующий шаг</b>\nЕсли картинки пришли — выбери вариант или напиши правку. Если не пришли — пришли этот блок ошибки, теперь причина будет видна.`;
+  return `🎨 <b>${isRevision ? 'Доработка визуала по последнему Visual Job' : 'Visual-only генерация'}</b>\n\n<b>Что важно</b>\n• Кампанию не пересоздавал\n• Schedule не менял\n• Новые публикации не создавал\n\n<b>Кампания</b>\n${escapeHtml(event.player1 || '')} vs ${escapeHtml(event.player2 || '')} · ${escapeHtml(event.division || '')} · 6 июня · 17:00\n\n<b>Референсы</b>\n• найдено — ${refsToUse.length}\n• загружено для генерации — ${referenceBuffers.length}\n\n<b>Visual Job</b>\n<code>${escapeHtml(visualJob.visual_job_id)}</code>\n\n<b>Результат</b>\n${imgLines}${errorBlock}\n\n<b>Следующий шаг</b>\nЕсли картинки пришли — выбери вариант или напиши правку. Если не пришли — пришли этот блок ошибки, теперь причина будет видна.`;
 }
 
 function collectTelegramImages(assets = [], jobId = '') {

@@ -3,10 +3,10 @@ import { getActiveCampaigns, getCurrentFocus, getCampaignByEventId, getActiveCam
 import { escapeHtml } from '../utils/html.js';
 import { campaignSelectorKeyboard, visualNextStepKeyboard } from './telegramKeyboardService.js';
 
-const VISUAL_WORDS = /(постер|картин|изображ|визуал|cover|poster|обложк|story\s*poster|telegram\s*cover|вариант)/i;
+const VISUAL_WORDS = /(постер|картин|изображ|визуал|cover|poster|обложк|story\s*poster|telegram\s*cover|вариант|логотип|лого|фото|спортсмен|игрок|лица|лицо|фон|композици|шрифт|цвет)/i;
 const GENERATE_WORDS = /(сгенер|генерир|создай|сделай|пришли|подготовь|перегенер|пересоздай)/i;
 const CAMPAIGN_WORDS = /(кампан|контент[-\s]?план|smm[-\s]?кампан|прогрев|план публикац|schedule)/i;
-const EDIT_WORDS = /(доработ|измени|исправ|сделай.*темн|крупн|лучше|увелич|уменьш|поменя|оставь|на базе|вариант\s*[12]|перв|втор|оба|обе)/i;
+const EDIT_WORDS = /(доработ|измени|исправ|сохрани|не\s+изменяй|не\s+меняй|ближе.*оригинал|оригинал|сделай.*темн|сделай.*светл|крупн|лучше|увелич|уменьш|поменя|оставь|на базе|вариант\s*[12]|перв|втор|оба|обе|фон|композици|шрифт|цвет|логотип|лого|фото.*спортсмен|спортсмен.*фото)/i;
 const NO_RECREATE = /(не\s+пересоздавай|не\s+создавай.*кампан|не\s+меняй.*(план|schedule)|только\s+(постер|визуал|картин)|используй\s+текущ|по\s+текущ|уже\s+утвержд)/i;
 const MEDIA_OS_WORDS = /(media\s*os|drive|google drive|диск|папк|директор|файл|видео|ролик|клип|медиафайл|asset|ассет|reference|референс|player cards|карточк|скриншот|сайт|фронтенд|frontend|код|html|css|блок|softr|страниц|profile|stories|reels|рилс|карусел)/i;
 const TECH_QUESTION_WORDS = /(можешь|может|как|куда|где|зачем|почему|что делать|правильно|нужно ли|поясни|объясни|провер|находить|искать|понимать|логик)/i;
@@ -41,9 +41,13 @@ function buildDecision({ raw, campaigns, target, locks }) {
   const hasEdit = EDIT_WORDS.test(raw);
   const noRecreate = NO_RECREATE.test(raw);
   const explicitlyNew = /(нов(ая|ую)\s+кампан|нов(ое|ый)\s+событ|нов(ый)?\s+матч|собери\s+кампан|подготовь.*кампан|подготовь.*контент[-\s]?план)/i.test(raw) && !noRecreate;
-  const isMediaOps = MEDIA_OS_WORDS.test(raw) && (TECH_QUESTION_WORDS.test(raw) || /ищи|используй|прими|фиксир|заложи|папках игроков|без привязки/i.test(raw)) && !explicitlyNew && !(/сгенер|генерир|создай.*постер|сделай.*постер/i.test(raw));
-  const isPlayerCardQuestion = PLAYER_CARD_WORDS.test(raw) && !(/сгенер|генерир|создай.*кампан|контент[-\s]?план/i.test(raw));
-  const isContentTypeQuestion = CONTENT_TYPE_WORDS.test(raw) && !explicitlyNew;
+  const isVisualRevisionFeedback = hasEdit && !explicitlyNew && (
+    hasVisual ||
+    /(последн|предыдущ|вариант|постер|картин|визуал|фон|композици|шрифт|цвет|логотип|лого|фото|спортсмен|игрок|лица|лицо|оригинал)/i.test(raw)
+  );
+  const isMediaOps = MEDIA_OS_WORDS.test(raw) && (TECH_QUESTION_WORDS.test(raw) || /ищи|используй|прими|фиксир|заложи|папках игроков|без привязки/i.test(raw)) && !explicitlyNew && !isVisualRevisionFeedback && !(/сгенер|генерир|создай.*постер|сделай.*постер/i.test(raw));
+  const isPlayerCardQuestion = PLAYER_CARD_WORDS.test(raw) && !isVisualRevisionFeedback && !(/сгенер|генерир|создай.*кампан|контент[-\s]?план/i.test(raw));
+  const isContentTypeQuestion = CONTENT_TYPE_WORDS.test(raw) && !isVisualRevisionFeedback && !explicitlyNew;
   const multipleCampaigns = campaigns.length > 1;
   const vagueCurrent = /(это|этот|текущ|по\s+нему|по\s+кампан|по\s+матч|референс|визуал|постер|картин)/i.test(raw) && !mentionsAnyCampaign(raw, campaigns);
 
@@ -57,13 +61,13 @@ function buildDecision({ raw, campaigns, target, locks }) {
     return decision('MEDIA_OS_MANAGEMENT', target, 0.88, 'media_ops_answer', ['answer_media_ops_question','update_media_logic'], ['create_campaign','change_schedule','create_publication_plan','generate_image'], 'Операционный вопрос/правило про Media OS, папки, файлы и поиск ассетов.');
   }
 
-  if (hasVisual && hasEdit && !explicitlyNew) {
-    return decision('EDIT_VISUAL', target, 0.9, 'visual_revision', ['read_active_campaign','read_last_visual_job','create_visual_revision'], ['create_campaign','change_schedule','create_publication_plan'], 'Правка/выбор варианта визуала по текущей кампании.');
+  if (isVisualRevisionFeedback) {
+    return decision('EDIT_VISUAL', target, 0.93, 'visual_revision', ['read_active_campaign','read_last_visual_job','create_visual_revision','send_images_to_telegram'], ['create_campaign','change_schedule','create_publication_plan','reference_batch_summary'], 'Правка/выбор уже сгенерированного визуала. Не показываем список референсов и не пересобираем кампанию.');
   }
   if (hasVisual && hasGenerate && !explicitlyNew) {
     return decision('GENERATE_VISUAL', target, 0.92, 'visual_only_generation', ['read_active_campaign','read_reference_assets','create_visual_job','generate_two_options','send_images_to_telegram'], ['create_campaign','change_schedule','create_publication_plan'], 'Запрос на генерацию визуала. Кампанию и schedule трогать нельзя.');
   }
-  if (/референс|reference|фото|логотип|стиль|постер-реф/i.test(raw) && !hasCampaign) {
+  if (/референс|reference|фото|логотип|стиль|постер-реф/i.test(raw) && !hasCampaign && !isVisualRevisionFeedback) {
     return decision('REGISTER_REFERENCE_ASSETS', target, 0.78, 'reference_intake', ['bind_reference_assets','suggest_next_visual_step'], ['create_campaign','change_schedule'], 'Запрос относится к референсам/медиа.');
   }
   if (explicitlyNew) {
