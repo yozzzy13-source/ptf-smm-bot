@@ -4,21 +4,27 @@ export function actionKeyboard(targetType, targetId, context = {}) {
   return { inline_keyboard: [[{ text: '✅ Утвердить', callback_data: `ptf|approve|${type}|${id}` }, { text: '✏️ Править', callback_data: `ptf|edit|${type}|${id}` }],[{ text: '⏰ Отложить', callback_data: `ptf|postpone|${type}|${id}` }, { text: '🔁 Пересобрать', callback_data: `ptf|regen|${type}|${id}` }]] };
 }
 export function postingKeyboard(reminderId, relatedObjectId = '') { const rid=compactId(reminderId); return { inline_keyboard: [[{ text:'✅ Опубликовал', callback_data:`ptf|posted|rem|${rid}` },{ text:'⏳ Ещё нет', callback_data:`ptf|notyet|rem|${rid}` }],[{ text:'⏰ Позже', callback_data:`ptf|postpone|rem|${rid}` },{ text:'🚫 Пропустить', callback_data:`ptf|skip|rem|${rid}` }],[{ text:'✏️ Править задачу', callback_data:`ptf|edit|rem|${rid}` }]] }; }
-export function mediaIntakeKeyboard(referenceId) { const id=compactId(referenceId); return { inline_keyboard: [[{ text:'👤 Игрок', callback_data:`ptf|playerref|ref|${id}` },{ text:'🎨 Стиль', callback_data:`ptf|style|ref|${id}` }],[{ text:'🏟 Локация/партнёр', callback_data:`ptf|eventref|ref|${id}` },{ text:'🗑 Не использовать', callback_data:`ptf|skip|ref|${id}` }],[{ text:'🎨 Сгенерировать постер', callback_data:`ptf|generate|ref|${id}` }]] }; }
-export function referenceBatchKeyboard(eventId = 'active') { const id=compactId(eventId); return { inline_keyboard: [[{ text:'✅ Подтвердить референсы', callback_data:`ptf|approve|refbatch|${id}` }],[{ text:'🎨 Главный постер 4:5', callback_data:`ptf|generate|visual|${id}` },{ text:'📱 Story 9:16', callback_data:`ptf|generate_story|visual|${id}` }],[{ text:'🖼 Telegram cover 16:9', callback_data:`ptf|generate_tg|visual|${id}` }]] }; }
-export function visualSetKeyboard(visualJobId) { const id=compactId(visualJobId); return { inline_keyboard: [[{ text:'✅ Утвердить 1', callback_data:`ptf|approve_v1|vjob|${id}` },{ text:'✅ Утвердить 2', callback_data:`ptf|approve_v2|vjob|${id}` }],[{ text:'✏️ Править 1', callback_data:`ptf|edit_v1|vjob|${id}` },{ text:'✏️ Править 2', callback_data:`ptf|edit_v2|vjob|${id}` }],[{ text:'🔁 Перегенерировать оба', callback_data:`ptf|regen_both|vjob|${id}` }]] }; }
-
-export function visualNextStepKeyboard(eventId = 'active') {
-  const id = compactId(eventId);
+export function mediaIntakeKeyboard(referenceId) {
+  const id = compactId(referenceId);
   return {
     inline_keyboard: [
       [
-        { text: '🎨 Главный постер 4:5', callback_data: `ptf|generate|visual_main|${id}` },
-        { text: '📱 Story 9:16', callback_data: `ptf|generate|visual_story|${id}` }
+        { text:'👤 Игрок', callback_data:`ptf|playerref|ref|${id}` },
+        { text:'🪪 Player card', callback_data:`ptf|playercard|ref|${id}` }
       ],
       [
-        { text: '🖼 Telegram cover 16:9', callback_data: `ptf|generate|visual_tg|${id}` },
-        { text: '🔁 2 варианта заново', callback_data: `ptf|regen_both|visual|${id}` }
+        { text:'🎨 Стиль/композиция', callback_data:`ptf|style|ref|${id}` },
+        { text:'🏷 PTF logo exact', callback_data:`ptf|brandlogo|ref|${id}` }
+      ],
+      [
+        { text:'🏟 Локация/партнёр', callback_data:`ptf|eventref|ref|${id}` },
+        { text:'🏷 Venue/sponsor logo', callback_data:`ptf|venuelogo|ref|${id}` }
+      ],
+      [
+        { text:'🗑 Не использовать', callback_data:`ptf|skip|ref|${id}` }
+      ],
+      [
+        { text:'🎨 Сгенерировать постер', callback_data:`ptf|generate|ref|${id}` }
       ]
     ]
   };

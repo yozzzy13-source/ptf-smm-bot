@@ -32,12 +32,21 @@ export async function processVisualOnlyRequest({ text, messageMeta, runLogger, d
   const lastJob = await getLastVisualJob(event.event_id);
   const referenceAssets = await getRecentReferenceAssets(30);
   const refsToUse = pickReferences(referenceAssets, event.event_id);
+  const refPlan = buildReferencePlan(refsToUse, event);
   const referenceBuffers = [];
-  for (const ref of refsToUse) {
+  for (const ref of refPlan.generationRefs) {
     if (!ref.telegram_file_id) continue;
     try {
       const file = await downloadTelegramFileBuffer(ref.telegram_file_id);
-      if (file?.buffer) referenceBuffers.push({ ...file, reference_id: ref.reference_id, reference_type: ref.reference_type });
+      if (file?.buffer) {
+        referenceBuffers.push({
+          ...file,
+          reference_id: ref.reference_id,
+          reference_type: ref.reference_type,
+          reference_role: classifyReferenceRole(ref),
+          original_filename: referenceLabel(ref)
+        });
+      }
     } catch (err) {
       runLogger?.warn?.({ err: err.message, referenceId: ref.reference_id }, 'Could not download reference for visual generation');
     }
@@ -59,7 +68,7 @@ export async function processVisualOnlyRequest({ text, messageMeta, runLogger, d
   });
 
   const assets = [];
-  const basePrompt = buildPosterPrompt({ text, event, refsToUse, isRevision, lastJob });
+  const basePrompt = buildPosterPrompt({ text, event, refsToUse, isRevision, lastJob, refPlan });
 
   for (let i = 1; i <= variantCount; i += 1) {
     const visualId = shortId('VIS');
@@ -112,12 +121,122 @@ function pickReferences(refs = [], eventId = '') {
   return [...map.values()].slice(-10);
 }
 
-function buildPosterPrompt({ text, event, refsToUse, isRevision, lastJob }) {
-  const styleCount = refsToUse.filter((r) => /style|brand/i.test(r.reference_type || '')).length;
-  const playerCount = refsToUse.filter((r) => /player/i.test(r.reference_type || '')).length;
-  const eventCount = refsToUse.filter((r) => /event|location/i.test(r.reference_type || '')).length;
-  return `Create premium Phuket Tennis Family visual content. This is VISUAL-ONLY mode. Do not create or modify a content campaign, schedule, captions, or publication plan.\n\nEvent:\n${event.player1} vs ${event.player2}\nDivision ${event.division || 'PRIME'}\n6 June · 17:00\n${event.venue || 'The Peak Racquet Park'}\n\nReference images available:\n- ${playerCount} player reference image(s) for appearance and identity.\n- ${styleCount} style/brand/poster reference image(s) for PTF visual direction.\n- ${eventCount} event/location/logo reference image(s).\n\nPTF visual direction:\nPremium cinematic sports poster, tropical Phuket tennis atmosphere, blue hard court, sunset / dramatic warm light, high-end commercial sports photography, clean strong typography, players as heroes, PTF identity, minimal but clear text. Include PTF branding and venue branding when reference is provided.\n\nRequired text on visual:\n${event.player1} vs ${event.player2}\nDivision ${event.division || 'PRIME'}\n6 June · 17:00\nThe Peak Racquet Park\n\n${isRevision ? `This is a revision request. Use the user's feedback and preserve the selected composition when requested. Last visual job: ${lastJob?.visual_job_id || 'unknown'}.` : ''}\n\nUser instruction:\n${text}`;
+function buildPosterPrompt({ text, event, refsToUse, isRevision, lastJob, refPlan = null }) {
+  const plan = refPlan || buildReferencePlan(refsToUse, event);
+  const playerCount = plan.playerRefs.length;
+  const styleCount = plan.styleRefs.length;
+  const exactLogoCount = plan.exactLogoRefs.length;
+  const venueLogoCount = plan.venueLogoRefs.length;
+
+  const playerInstruction = `PLAYER IDENTITY LOCK:
+- Use ONLY the player reference images as player identity/appearance references.
+- Do NOT use people from style/poster reference images as players.
+- Default layout: Player 1 (${event.player1 || 'Player 1'}) on the LEFT, Player 2 (${event.player2 || 'Player 2'}) on the RIGHT.
+- Keep player faces and body proportions as close to the provided player references as possible.
+- If player references conflict with style references, player references win.`;
+
+  const styleInstruction = `STYLE REFERENCES:
+- Style/poster references are for mood, lighting, typography, composition, sports-poster energy and premium PTF atmosphere ONLY.
+- Never copy players, faces, names, logos or opponent identities from style references.
+- Do not invent extra players.`;
+
+  const logoInstruction = `LOGO / BRAND RULES:
+- Exact logo assets are NOT identity references and must not be redrawn or reinterpreted.
+- Reserve a clean safe area for the PTF logo overlay in the TOP-CENTER of the poster.
+- Do not generate a fake, modified, decorative, palm-tree-added, warped or re-styled PTF logo.
+- If a venue/sponsor logo is needed, leave a clean placement area; do not redesign it.
+- If the model cannot preserve a logo exactly, leave space for overlay instead of drawing a distorted logo.`;
+
+  const overlayNote = plan.exactLogoRefs.length
+    ? `Exact logo overlay expected after generation: ${plan.exactLogoRefs.map(referenceLabel).join(', ')}.`
+    : 'No exact logo selected yet; keep top-center area clean for future logo overlay.';
+
+  return `Create premium Phuket Tennis Family visual content. This is VISUAL-ONLY mode. Do not create or modify a content campaign, schedule, captions, or publication plan.
+
+Event:
+${event.player1} vs ${event.player2}
+Division ${event.division || 'PRIME'}
+6 June · 17:00
+${event.venue || 'The Peak Racquet Park'}
+
+Reference package:
+- ${playerCount} player identity reference image(s).
+- ${styleCount} style/composition reference image(s).
+- ${exactLogoCount} exact PTF/brand logo asset(s) reserved for overlay.
+- ${venueLogoCount} exact venue/sponsor logo asset(s), used only when selected for this event.
+
+${playerInstruction}
+
+${styleInstruction}
+
+${logoInstruction}
+
+Overlay instruction:
+${overlayNote}
+
+PTF visual direction:
+Premium cinematic sports poster, tropical Phuket tennis atmosphere, blue hard court, sunset / dramatic warm light, high-end commercial sports photography, clean strong typography, players as heroes, minimal but clear text. Leave top-center negative space for exact PTF logo overlay.
+
+Required text on visual:
+${event.player1} vs ${event.player2}
+Division ${event.division || 'PRIME'}
+6 June · 17:00
+The Peak Racquet Park
+
+${isRevision ? `This is a revision request. Use the user's feedback and preserve the selected composition when requested. Last visual job: ${lastJob?.visual_job_id || 'unknown'}.` : ''}
+
+User instruction:
+${text}`;
 }
+
+function classifyReferenceRole(ref = {}) {
+  const type = String(ref.reference_type || '').toLowerCase();
+  if (/brand logo exact|ptf logo|exact logo/.test(type)) return 'brand_logo_exact';
+  if (/venue|sponsor|partner|location|локац|партн/.test(type) && /logo|exact/.test(type)) return 'venue_logo_exact';
+  if (/player card/.test(type)) return 'player_card';
+  if (/player|игрок|playerref/.test(type)) return 'player_ref';
+  if (/style|стил|poster|composition|brand reference/.test(type)) return 'style_ref';
+  if (/event|событ|venue|location|partner/.test(type)) return 'event_ref';
+  return 'other_ref';
+}
+
+function referenceLabel(ref = {}) {
+  const notes = parseMaybeJson(ref.notes);
+  return notes.display_label || notes.original_filename || ref.reference_id || 'reference';
+}
+
+function parseMaybeJson(value = '') {
+  try {
+    const parsed = JSON.parse(String(value || '{}'));
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function buildReferencePlan(refs = [], event = {}) {
+  const unique = [];
+  const seen = new Set();
+  for (const ref of refs || []) {
+    if (!ref?.reference_id || seen.has(ref.reference_id)) continue;
+    seen.add(ref.reference_id);
+    unique.push(ref);
+  }
+
+  const playerRefs = unique.filter((r) => classifyReferenceRole(r) === 'player_ref').slice(-2);
+  const playerCards = unique.filter((r) => classifyReferenceRole(r) === 'player_card').slice(-2);
+  const styleRefs = unique.filter((r) => classifyReferenceRole(r) === 'style_ref').slice(-4);
+  const exactLogoRefs = unique.filter((r) => classifyReferenceRole(r) === 'brand_logo_exact').slice(-2);
+  const venueLogoRefs = unique.filter((r) => classifyReferenceRole(r) === 'venue_logo_exact').slice(-2);
+  const eventRefs = unique.filter((r) => classifyReferenceRole(r) === 'event_ref').slice(-2);
+
+  // Exact logos are intentionally excluded from generation refs to avoid distorted/redrawn logos.
+  // The prompt reserves space for overlay. Logo compositing can be added as a later deterministic pipeline.
+  const generationRefs = [...playerRefs, ...styleRefs, ...eventRefs, ...playerCards].slice(-8);
+
+  return { unique, playerRefs, playerCards, styleRefs, exactLogoRefs, venueLogoRefs, eventRefs, generationRefs };
+}
+
 function formatVisualOnlyReply({ event, refsToUse, referenceBuffers, savedImages, visualJob, isRevision, assets = [] }) {
   const imgLines = (assets || []).map((a, i) => {
     const g = a.generated_image || {};

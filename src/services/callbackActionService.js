@@ -20,7 +20,7 @@ export async function handleCallbackQuery({ callbackQuery, runLogger }) {
   const statusMap = {
     approve: 'Approved', edit: 'Needs Edit', postpone: 'Postponed', regen: 'Needs Regeneration',
     posted: 'Published', notyet: 'Not Published Yet', skip: 'Skipped', style: 'Style Reference',
-    playerref: 'Player Reference', eventref: 'Event Reference',
+    playerref: 'Player Reference', playercard: 'Player Card', eventref: 'Event Reference', brandlogo: 'Brand Logo Exact', venuelogo: 'Venue / Sponsor Logo Exact',
     focus: 'Focused', approve_v1: 'Visual Option 1 Approved', approve_v2: 'Visual Option 2 Approved', edit_v1: 'Needs Edit Option 1', edit_v2: 'Needs Edit Option 2', regen_both: 'Regenerate Both', generate: 'Generate Visual'
   };
   const newStatus = statusMap[action] || action;
@@ -58,7 +58,13 @@ export async function handleCallbackQuery({ callbackQuery, runLogger }) {
     await updateReferenceAssetType(id, 'Style Reference', 'User marked reference as style pack');
     await saveStylePackFromReference(id, { source: 'telegram_callback', notes: 'User marked reference as style pack' });
   } else if (type === 'ref' && action === 'playerref') {
-    await updateReferenceAssetType(id, 'Player Reference', 'User marked reference as player reference');
+    await updateReferenceAssetType(id, 'Player Reference', 'User marked reference as player reference. Use as identity/appearance reference only.');
+  } else if (type === 'ref' && action === 'playercard') {
+    await updateReferenceAssetType(id, 'Player Card', 'User marked reference as player card / website card screenshot.');
+  } else if (type === 'ref' && action === 'brandlogo') {
+    await updateReferenceAssetType(id, 'Brand Logo Exact', 'User marked as exact PTF brand logo. Do not redraw in image model; reserve top-center overlay space.');
+  } else if (type === 'ref' && action === 'venuelogo') {
+    await updateReferenceAssetType(id, 'Venue / Sponsor Logo Exact', 'User marked as exact venue/sponsor logo. Ask/choose per event; do not redraw when exact overlay is required.');
   } else if (type === 'ref' && action === 'eventref') {
     await updateReferenceAssetType(id, 'Event Reference', 'User marked reference as event reference');
   } else if (type === 'ref' && action === 'skip') {
@@ -87,6 +93,9 @@ function replyText(action, type, id) {
   if (action === 'posted') return `✅ <b>Опубликовано</b>\n\nЯ зафиксировал статус и не буду больше напоминать по этой задаче.`;
   if (action === 'notyet') return `⏳ <b>Ок, ещё не опубликовано</b>\n\nЯ оставил задачу в follow-up и напомню позже.`;
   if (action === 'approve') return `✅ <b>Утверждено</b>\n\nЯ зафиксировал решение. Следующий шаг — исполнение по расписанию.`;
-  if (action === 'style') return `🎨 <b>Стиль сохранён</b>\n\nЯ пометил этот референс как часть Style Pack.`;
+  if (action === 'style') return `🎨 <b>Стиль сохранён</b>\n\nЯ пометил этот референс как style/composition reference. Людей и логотипы с него нельзя использовать как identity.`; 
+  if (action === 'brandlogo') return `🏷 <b>PTF logo exact сохранён</b>\n\nЯ пометил файл как точный логотип. В генерации я должен оставлять место под overlay и не просить модель перерисовывать его.`;
+  if (action === 'venuelogo') return `🏷 <b>Логотип локации/партнёра сохранён</b>\n\nЯ пометил файл как точный venue/sponsor logo. Для будущих событий буду ждать твоего выбора, какой логотип подставлять.`; 
+  if (action === 'playercard') return `🪪 <b>Player card сохранена</b>\n\nЯ пометил файл как карточку игрока / скрин с сайта. Можно использовать как player card asset.`;
   return `📌 <b>Принято</b>\n\nСтатус обновлён: <code>${escapeHtml(action)}</code>.`;
 }
