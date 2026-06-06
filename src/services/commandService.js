@@ -2,7 +2,7 @@ import { config } from '../config.js';
 import { generateTodayPackSummary } from '../agents/todayPackAgent.js';
 import { ensureSheetHeaders } from './googleSheetsService.js';
 import { HEADERS } from '../schemas/sheetSchema.js';
-import { getRecentEvents, getPublicationSchedule, syncSourceRegistryDefaults, seedStrategicDefaults, cleanupTestCampaigns, getActiveCampaign, getCurrentFocus, getActiveCampaigns, getLastVisualJob, getRecentReferenceAssets } from './sheetsStorage.js';
+import { getRecentEvents, getPublicationSchedule, syncSourceRegistryDefaults, seedStrategicDefaults, cleanupTestCampaigns, getActiveCampaign, getCurrentFocus, getActiveCampaigns, getLastVisualJob, getRecentReferenceAssets, getReferenceAssetsReview, updateReferenceAssetType } from './sheetsStorage.js';
 import { bootstrapMediaOs } from './mediaOsBootstrapService.js';
 import { scanMediaOs } from './mediaScannerService.js';
 import { escapeHtml } from '../utils/html.js';
@@ -79,6 +79,34 @@ export async function handleAdminCommand({ text, runLogger }) {
     return { type:'command', parseMode:'HTML', textRu: campaignsReply(campaigns) };
   }
 
+  if (['/refs','/references'].includes(command)) {
+    const active = await getActiveCampaign();
+    const refs = await getReferenceAssetsReview({ eventId: active?.event_id || '', limit: 30, includeSkipped: false });
+    return { type:'command', parseMode:'HTML', textRu: refsReply({ refs, active, includeSkipped: false }) };
+  }
+
+  if (['/refs_all','/references_all'].includes(command)) {
+    const active = await getActiveCampaign();
+    const refs = await getReferenceAssetsReview({ eventId: active?.event_id || '', limit: 40, includeSkipped: true });
+    return { type:'command', parseMode:'HTML', textRu: refsReply({ refs, active, includeSkipped: true }) };
+  }
+
+  if (command === '/skip_ref') {
+    const refId = String(text || '').trim().split(/\s+/)[1] || '';
+    if (!refId) return { type:'command', parseMode:'HTML', textRu:'⚠️ <b>Не указан REF ID</b>\n\nПример: <code>/skip_ref REF-1234567</code>' };
+    const ok = await updateReferenceAssetType(refId, 'Do Not Use', 'Skipped by /skip_ref command');
+    return { type:'command', parseMode:'HTML', textRu: ok ? `🗑 <b>Референс отключён</b>\n\n<code>${escapeHtml(refId)}</code> больше не должен попадать в генерацию.` : `⚠️ <b>REF не найден</b>\n\nПроверь ID: <code>${escapeHtml(refId)}</code>` };
+  }
+
+  if (command === '/role_ref') {
+    const parts = String(text || '').trim().split(/\s+/);
+    const refId = parts[1] || '';
+    const role = normalizeRefRole(parts.slice(2).join(' '));
+    if (!refId || !role) return { type:'command', parseMode:'HTML', textRu:'⚠️ <b>Нужен REF ID и роль</b>\n\nПример:\n<code>/role_ref REF-1234567 player</code>\n\nРоли: <code>player</code>, <code>style</code>, <code>ptflogo</code>, <code>venuelogo</code>, <code>playercard</code>, <code>event</code>, <code>skip</code>' };
+    const ok = await updateReferenceAssetType(refId, role, `Role changed by /role_ref command to ${role}`);
+    return { type:'command', parseMode:'HTML', textRu: ok ? `✅ <b>Роль обновлена</b>\n\n<code>${escapeHtml(refId)}</code> → <code>${escapeHtml(role)}</code>` : `⚠️ <b>REF не найден</b>\n\nПроверь ID: <code>${escapeHtml(refId)}</code>` };
+  }
+
 
   if (command === '/bootstrap_media_os') {
     const result = await bootstrapMediaOs();
@@ -112,7 +140,7 @@ function commandsList() {
   return `🧭 <b>PTF Media Bot — команды</b>\n\n<b>Основное</b>\n<code>/commands</code> — показать все команды\n<code>/status</code> — состояние бота и ключевых режимов\n<code>/models</code> — какие модели прописаны в Railway\n<code>/today</code> — сегодняшний контент-пак\n<code>/upcoming</code> — последние/ближайшие события из таблицы\n<code>/schedule</code> — последние элементы Publication Schedule
 <code>/active_campaign</code> — текущая активная кампания
 <code>/campaign_state</code> — фокус, референсы, визуалы и следующий шаг
-<code>/campaigns</code> — список активных кампаний\n<code>/bootstrap_media_os</code> — создать/проверить структуру Google Drive Media OS\n<code>/scan_media_os</code> — просканировать Media OS и записать новые файлы в Assets Library\n\n<b>Обслуживание</b>\n<code>/setup</code> — заново проверить/создать вкладки Google Sheets\n<code>/clear_history</code> — сбросить разговорный контекст чата\n<code>/reset_context</code> — то же самое\n<code>/restart</code> — перезапустить процесс бота, если включено в env\n\n<b>Картинки</b>\n<code>/image_on</code> — подсказка, как включить генерацию изображений\n<code>/image_off</code> — подсказка, как выключить генерацию изображений
+<code>/campaigns</code> — список активных кампаний\n<code>/refs</code> — понятный список активных референсов текущей кампании\n<code>/refs_all</code> — все последние референсы, включая отключённые\n<code>/skip_ref REF-ID</code> — отключить неправильный референс\n<code>/role_ref REF-ID role</code> — поменять роль референса\n<code>/bootstrap_media_os</code> — создать/проверить структуру Google Drive Media OS\n<code>/scan_media_os</code> — просканировать Media OS и записать новые файлы в Assets Library\n\n<b>Обслуживание</b>\n<code>/setup</code> — заново проверить/создать вкладки Google Sheets\n<code>/clear_history</code> — сбросить разговорный контекст чата\n<code>/reset_context</code> — то же самое\n<code>/restart</code> — перезапустить процесс бота, если включено в env\n\n<b>Картинки</b>\n<code>/image_on</code> — подсказка, как включить генерацию изображений\n<code>/image_off</code> — подсказка, как выключить генерацию изображений
 <code>/generate_visual</code> — visual-only генерация: не трогает кампанию и schedule\n\n<b>Кнопки в сообщениях</b>\n✅ Утвердить — фиксирует план/драфт/визуал\n✏️ Править — бот ждёт твою правку текстом\n✅ Опубликовал — отмечает задачу как опубликованную\n⏳ Ещё нет — оставляет в follow-up\n⏰ Позже — переносит/откладывает статус\n🚫 Пропустить — снимает напоминание\n\n<b>Как работать без команд</b>\nМожно писать обычным текстом:\n<pre>Через 2 дня матч Chris vs Robin. Подготовь SMM-сопровождение, прогрев, визуалы и задачи для меня.</pre>`;
 }
 
@@ -172,12 +200,10 @@ ${escapeHtml(result?.message || 'Неизвестная ошибка')}
 <b>Создано новых папок:</b> ${String(result.created || 0)}
 <b>Записей в folder map:</b> ${String(result.mapped || 0)}
 <b>Root folder ID:</b> <code>${escapeHtml(result.rootFolderId || '')}</code>
-<b>README:</b> файл на Drive не создавался; инструкция сохранена в Google Sheets
+<b>README:</b> ${result.readmeLink ? `<a href="${escapeHtml(result.readmeLink)}">открыть</a>` : 'создан'}
 
 <b>Важно</b>
-Видео конкретного матча кладём в папку кампании, а не дублируем по папкам игроков. Бот связывает один файл с событием и участниками через таблицы.
-
-Если команда завершилась без ошибки — все базовые директории созданы или уже существовали.`;
+Видео конкретного матча кладём в папку кампании, а не дублируем по папкам игроков. Бот связывает один файл с событием и участниками через таблицы.`;
 }
 
 function scanMediaOsReply(result) {
@@ -192,6 +218,38 @@ ${escapeHtml(result?.message || 'Неизвестная ошибка')}`;
 
 Новые файлы записаны в <code>54_Media Scan Log</code> и <code>04_Assets Library</code>.`;
 }
+
+
+function normalizeRefRole(raw = '') {
+  const t = String(raw || '').toLowerCase().trim();
+  if (!t) return '';
+  if (['player','игрок','playerref'].includes(t)) return 'Player Reference';
+  if (['style','стиль','composition','poster'].includes(t)) return 'Style Reference';
+  if (['ptflogo','ptf','brand','brandlogo','logo_ptf'].includes(t)) return 'Brand Logo Exact';
+  if (['venuelogo','venue','sponsor','partner','локация','партнер','партнёр'].includes(t)) return 'Venue / Sponsor Logo Exact';
+  if (['playercard','card','карточка'].includes(t)) return 'Player Card';
+  if (['event','eventref','location'].includes(t)) return 'Event Reference';
+  if (['skip','remove','delete','trash','неиспользовать'].includes(t)) return 'Do Not Use';
+  return '';
+}
+
+function refsReply({ refs = [], active = null, includeSkipped = false }) {
+  const title = includeSkipped ? 'Все последние референсы' : 'Активные референсы';
+  const campaign = active ? `${active.player1 || ''} vs ${active.player2 || ''}` : 'кампания не выбрана';
+  if (!refs.length) return `📎 <b>${title}</b>\n\n<b>Кампания:</b> ${escapeHtml(campaign)}\n\nРеференсы не найдены.`;
+
+  const lines = refs.slice(0, 30).map((r, i) => {
+    const label = escapeHtml(r.display_label || r.original_filename || r.caption || r.reference_id || '');
+    const type = escapeHtml(r.reference_type || '');
+    const player = r.related_player ? ` · ${escapeHtml(r.related_player)}` : '';
+    const status = escapeHtml(r.status || '');
+    const link = r.drive_link ? ` · <a href="${escapeHtml(r.drive_link)}">open</a>` : '';
+    return `${i + 1}. <code>${escapeHtml(r.reference_id)}</code>\n   <b>${type}</b>${player} · ${status}${link}\n   ${label}`;
+  }).join('\n\n');
+
+  return `📎 <b>${title}</b>\n\n<b>Кампания:</b> ${escapeHtml(campaign)}\n\n${lines}\n\n<b>Как чистить</b>\n• Отключить плохой реф: <code>/skip_ref REF-XXXX</code>\n• Поменять роль: <code>/role_ref REF-XXXX player</code>\n• Роли: <code>player</code>, <code>style</code>, <code>ptflogo</code>, <code>venuelogo</code>, <code>playercard</code>, <code>event</code>`;
+}
+
 
 function resetContextReply() {
   return `🧹 <b>Контекст чата сброшен</b>\n\nСейчас бот не хранит длинную историю Telegram-диалога как отдельную память. Основная память проекта живёт в Google Sheets: Project Context, Brand Rules, Bot Memory, Published Archive и Schedule.\n\nЭта команда нужна как безопасный service-reset: после неё просто формулируй новую задачу с нуля.`;

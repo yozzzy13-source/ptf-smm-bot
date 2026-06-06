@@ -286,6 +286,75 @@ export async function getRecentReferenceAssets(limit = 30) {
   }
 }
 
+
+export async function getReferenceAssetsReview({ eventId = '', limit = 30, includeSkipped = false } = {}) {
+  try {
+    const rows = await readRange(SHEETS.referenceAssets, 'A2:M1000');
+    const mapped = rows.map((r, idx) => {
+      const notesRaw = r[11] || '';
+      const parsedNotes = parseReferenceNotes(notesRaw);
+      return {
+        row_number: idx + 2,
+        reference_id: r[0],
+        created_at: r[1],
+        source: r[2],
+        telegram_chat_id: r[3],
+        telegram_message_id: r[4],
+        telegram_file_id: r[5],
+        drive_link: r[6],
+        reference_type: r[7],
+        related_player: r[8],
+        related_event_id: r[9],
+        status: r[10],
+        notes: notesRaw,
+        last_updated: r[12],
+        original_filename: parsedNotes.original_filename || filenameFromNotes(notesRaw),
+        display_label: parsedNotes.display_label || parsedNotes.original_filename || filenameFromNotes(notesRaw) || shortReferenceLabel(r),
+        caption: parsedNotes.caption || fallbackCaption(notesRaw)
+      };
+    }).filter((r) => {
+      if (!r.reference_id) return false;
+      const st = String(r.status || '').toLowerCase();
+      if (!includeSkipped && (st.includes('skip') || st.includes('not use') || st.includes('archive'))) return false;
+      if (!eventId) return true;
+      return !r.related_event_id || r.related_event_id === eventId;
+    });
+    return mapped.slice(-limit).reverse();
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Failed to read reference assets review');
+    return [];
+  }
+}
+
+function parseReferenceNotes(raw = '') {
+  try {
+    const parsed = JSON.parse(String(raw || '{}'));
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function filenameFromNotes(raw = '') {
+  const s = String(raw || '');
+  const file = s.match(/([A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp|heic|mp4|mov))/i)?.[1];
+  return file || '';
+}
+
+function fallbackCaption(raw = '') {
+  const s = String(raw || '');
+  if (!s || s.trim().startsWith('{')) return '';
+  return s.slice(0, 120);
+}
+
+function shortReferenceLabel(row = []) {
+  const id = row[0] || '';
+  const type = row[7] || 'reference';
+  const msg = row[4] || '';
+  return `${type}${msg ? ` · tg msg ${msg}` : ''}${id ? ` · ${id}` : ''}`;
+}
+
+
 export async function updateReferenceAssetType(referenceId, referenceType, notes = '') {
   const rows = await readRange(SHEETS.referenceAssets, 'A2:M700');
   const idx = rows.findIndex((r) => r[0] === referenceId);
